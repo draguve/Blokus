@@ -27,9 +27,9 @@ class Piece:
                       [np.sin(angle), np.cos(angle)]])
         o = self.rotate_point
         p = self.possible_points
-        self.possible_points = np.rint(((R @ (p - o).T).T + o))
         self.bounding_box_size = np.array(self.shape.shape)
         self.rotate_point = self.bounding_box_size / 2
+        self.possible_points = np.rint(((R @ (p - o).T).T + self.rotate_point))
 
 
 class Monomino(Piece):
@@ -61,8 +61,9 @@ class TriominoB(Piece):
     def __init__(self):
         super().__init__(boundingBoxSize=(3, 1))
         self.shape[:, :] = True
-        self.possible_points = np.array([(0, 0), (2, 0), (0, 1), (2, 1)])
+        self.possible_points = np.array([(0, 0), (3, 0), (0, 1), (3, 1)])
         self.different90 = True
+
 
 def test():
     mono = Monomino()
