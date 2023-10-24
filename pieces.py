@@ -10,6 +10,7 @@ class Piece:
         self.different90 = False
         self.different180 = False
 
+    # rotates anticlockwise k times
     def rotate(self, k=1):
         k = k % 4
         match (k, self.different90, self.different180):
@@ -19,7 +20,6 @@ class Piece:
                 return
             case (2, _, False):
                 return
-        # TODO: need to check if rot90 rotates in the same direction as our code(if not k=-k)
         self.shape = np.rot90(self.shape, k=k)
         degrees = k * 90
         angle = np.deg2rad(degrees)
