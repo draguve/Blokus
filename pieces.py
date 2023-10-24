@@ -19,6 +19,7 @@ class Piece:
                 return
             case (2, _, False):
                 return
+        # TODO: need to check if rot90 rotates in the same direction as our code(if not k=-k)
         self.shape = np.rot90(self.shape, k=k)
         degrees = k * 90
         angle = np.deg2rad(degrees)
@@ -63,6 +64,51 @@ class TriominoB(Piece):
         self.shape[:, :] = True
         self.possible_points = np.array([(0, 0), (3, 0), (0, 1), (3, 1)])
         self.different90 = True
+
+
+class TetrominoA(Piece):
+    def __init__(self):
+        super().__init__(boundingBoxSize=(4, 1))
+        self.shape[:, :] = True
+        self.possible_points = np.array([(0, 0), (4, 0), (0, 1), (4, 1)])
+        self.different90 = True
+
+
+class TetrominoB(Piece):
+    def __init__(self):
+        super().__init__(boundingBoxSize=(3, 2))
+        self.shape[:, 0] = True
+        self.shape[2, :] = True
+        self.possible_points = np.array([(0, 0), (0, 1), (2, 2), (3, 2), (3, 0)])
+        self.different90 = True
+        self.different180 = True
+
+
+class TetrominoC(Piece):
+    def __init__(self):
+        super().__init__(boundingBoxSize=(3, 2))
+        self.shape[0:2, 0] = True
+        self.shape[1:3, 1] = True
+        self.possible_points = np.array([(0, 0), (0, 1), (1, 2), (3, 2), (3, 1), (2, 0)])
+        self.different90 = True
+        self.different180 = True
+
+
+class TetrominoD(Piece):
+    def __init__(self):
+        super().__init__(boundingBoxSize=(2, 2))
+        self.shape[:, :] = True
+        self.possible_points = np.array([(0, 0), (2, 0), (0, 2), (2, 2)])
+
+
+class TetrominoE(Piece):
+    def __init__(self):
+        super().__init__(boundingBoxSize=(3, 2))
+        self.shape[1, :] = True
+        self.shape[:, 0] = True
+        self.possible_points = np.array([(0, 0), (0, 1), (1, 2), (2, 2), (3, 1), (3, 0)])
+        self.different90 = True
+        self.different180 = True
 
 
 def test():
