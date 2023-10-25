@@ -1,12 +1,32 @@
 import copy
-
+import cupy as cp
+# from cupyx.scipy import signal
 import numpy as np
+from scipy import signal
+
+collision_filter = np.zeros((3, 3), dtype=np.uint8)
+collision_filter[:, 1] = True
+collision_filter[1, :] = True
+
+rotation_matrices = np.zeros((4, 2, 2), dtype=np.float32)
+for k in range(4):
+    degrees = k * 90
+    angle = np.deg2rad(degrees)
+    rotation_matrices[k, :, :] = np.array([[np.cos(angle), -np.sin(angle)],
+                                           [np.sin(angle), np.cos(angle)]])
 
 
-# TODO: Need to able to flip all options
+class PostInitCaller(type):
+    def __call__(cls, *args, **kwargs):
+        obj = type.__call__(cls, *args, **kwargs)
+        obj.__post_init__()
+        return obj
+
+
 # TODO: make sure the datatype stays consistent
-class Piece:
+class Piece(metaclass=PostInitCaller):
     def __init__(self, boundingBoxSize=(1, 1)):
+        self.collision_mask = None
         self.possible_points = None
         self.shape = np.zeros(boundingBoxSize, dtype=bool)
         self.bounding_box_size = np.array(self.shape.shape)
@@ -15,6 +35,9 @@ class Piece:
         self.different180 = True
         self.different270 = True
         self.differentFlip = True
+
+    def __post_init__(self):
+        self.collision_mask = signal.convolve2d(self.shape, collision_filter).astype(bool)
 
     def is_unique(self, k, is_flipped):
         if is_flipped:
@@ -36,19 +59,9 @@ class Piece:
     # rotates anticlockwise k times
     def rotate(self, k=1):
         k = k % 4
-        # match (k, self.different90, self.different180):
-        #     case (0, _, _):
-        #         return
-        #     case (1 | 3, False, _):
-        #         return
-        #     case (2, _, False):
-        #         return
         self.shape = np.rot90(self.shape, k=k)
-        degrees = k * 90
-        angle = np.deg2rad(degrees)
-        # TODO: cache this
-        R = np.array([[np.cos(angle), -np.sin(angle)],
-                      [np.sin(angle), np.cos(angle)]])
+        self.collision_mask = np.rot90(self.collision_mask, k=k)
+        R = rotation_matrices[k, :, :]
         o = self.rotate_point
         p = self.possible_points
         self.bounding_box_size = np.array(self.shape.shape)
@@ -57,6 +70,7 @@ class Piece:
 
     def flip(self):
         self.shape = np.fliplr(self.shape)
+        self.collision_mask = np.fliplr(self.collision_mask)
         points = np.zeros((self.possible_points.shape[0], 3))
         points[:, 0:2] = self.possible_points
         o = np.zeros((3,))
@@ -350,10 +364,7 @@ def get_all_unique_pieces():
 
 def test():
     mono = Monomino()
-    mono.rotate(1)
-
-    domino = Domino()
-    domino.rotate(3)
+    mono.rotate()
 
 
 if __name__ == '__main__':

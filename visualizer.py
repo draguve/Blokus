@@ -1,6 +1,8 @@
 import copy
 import math
 from copy import deepcopy
+
+import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 
@@ -15,12 +17,16 @@ def plot_piece(piece: Piece):
     plt.xlim([-1, 6])
     plt.ylim([-1, 6])
     plot_piece_box(ax, piece)
-    plot_points(piece.possible_points.T)
+    plot_points(piece.possible_points)
     plt.show()
 
 
 def plot_piece_box(ax, piece: Piece, pos=(0, 0), color="red"):
-    for idx, toDraw in np.ndenumerate(piece.shape):
+    plot_box(ax, piece.shape, pos, color)
+
+
+def plot_box(ax, piece: np.array, pos=(0, 0), color="red"):
+    for idx, toDraw in np.ndenumerate(piece):
         if toDraw:
             ax.add_patch(Rectangle((idx[0] + pos[0], idx[1] + pos[1]), 1, 1, facecolor=color))
 
@@ -87,20 +93,48 @@ def plot_unique_pieces():
     plt.show()
 
 
-def plot_all_pieces():
-    all_pieces = get_all_pieces()
-    plot_multiple_pieces(all_pieces)
+def plot_collision_masks():
+    unique_pieces = get_all_unique_pieces()
+    total_unique_combinations = sum(len(v) for v in unique_pieces)
+    fig, ax = plt.subplots()
+    number_of_figures_per_side = math.ceil(math.sqrt(total_unique_combinations))
+    stride = 8
+    limit = number_of_figures_per_side * stride + 1
+    plt.xlim([-1, limit])
+    plt.ylim([-1, limit])
+    location_idx = 0
+    for i, piece_type in enumerate(unique_pieces):
+        for j, piece in enumerate(piece_type):
+            x = (location_idx % number_of_figures_per_side) * stride
+            y = math.floor(location_idx / number_of_figures_per_side) * stride
+            plot_box(ax, piece.collision_mask, (x, y), "red")
+            plot_box(ax, piece.shape, (x + 1, y + 1), "blue")
+            plot_points(piece.possible_points, (x + 1, y + 1), "green",s=2)
+            location_idx += 1
+    # plt.savefig("docs/all_collision_masks.png", format="png", dpi=1200)
     plt.show()
 
 
-def plot_points(points_to_plot):
-    plt.scatter(points_to_plot[0], points_to_plot[1])
+def plot_all_pieces():
+    all_pieces = get_all_pieces()
+    plot_multiple_pieces(all_pieces)
+    # plt.savefig("docs/all_pieces.png", format="png", dpi=1200)
+    plt.show()
+
+
+def plot_points(points_to_plot, origin_point=(0, 0), color="blue", s=None):
+    delta = np.array(origin_point)
+    points_to_plot = (points_to_plot + delta).T
+    plt.scatter(points_to_plot[0], points_to_plot[1], c=color, s=s)
 
 
 def test():
-    # plot_all_pieces()
-    # plot_all_rotations()
+    triomino = TriominoA()
+    plot_piece(triomino)
+    plot_all_pieces()
+    plot_all_rotations()
     plot_unique_pieces()
+    plot_collision_masks()
 
 
 if __name__ == '__main__':
