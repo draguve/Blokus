@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 
 
@@ -9,8 +11,27 @@ class Piece:
         self.shape = np.zeros(boundingBoxSize, dtype=bool)
         self.bounding_box_size = np.array(self.shape.shape)
         self.rotate_point = self.bounding_box_size / 2
-        self.different90 = False
-        self.different180 = False
+        self.different90 = True
+        self.different180 = True
+        self.different270 = True
+        self.differentFlip = True
+
+    def is_unique(self, k, is_flipped):
+        if is_flipped:
+            if self.differentFlip:
+                return self._is_unique_angle(angle=k)
+            return False
+        return self._is_unique_angle(angle=k)
+
+    def _is_unique_angle(self, angle):
+        match (angle, self.different90, self.different180, self.different270):
+            case (0 | 2, _, False, _):
+                return False
+            case (1, False, _, _):
+                return False
+            case (3, _, _, False):
+                return False
+        return True
 
     # rotates anticlockwise k times
     def rotate(self, k=1):
@@ -51,6 +72,10 @@ class Monomino(Piece):
         super().__init__(boundingBoxSize=(1, 1))
         self.shape[:, :] = True
         self.possible_points = np.array([(0, 0), (1, 0), (0, 1), (1, 1)])
+        self.differentFlip = False
+        self.different90 = False
+        self.different180 = False
+        self.different270 = False
 
 
 class Domino(Piece):
@@ -59,6 +84,9 @@ class Domino(Piece):
         self.shape[:, :] = True
         self.possible_points = np.array([(0, 0), (2, 0), (0, 1), (2, 1)])
         self.different90 = True
+        self.different180 = False
+        self.different270 = False
+        self.differentFlip = False
 
 
 class TriominoA(Piece):
@@ -69,6 +97,8 @@ class TriominoA(Piece):
         self.possible_points = np.array([(0, 0), (2, 0), (2, 1), (1, 2), (0, 2)])
         self.different90 = True
         self.different180 = True
+        self.different270 = True
+        self.differentFlip = False
 
 
 class TriominoB(Piece):
@@ -77,6 +107,9 @@ class TriominoB(Piece):
         self.shape[:, :] = True
         self.possible_points = np.array([(0, 0), (3, 0), (0, 1), (3, 1)])
         self.different90 = True
+        self.different180 = False
+        self.different270 = False
+        self.differentFlip = False
 
 
 class TetrominoA(Piece):
@@ -85,6 +118,9 @@ class TetrominoA(Piece):
         self.shape[:, :] = True
         self.possible_points = np.array([(0, 0), (4, 0), (0, 1), (4, 1)])
         self.different90 = True
+        self.different180 = False
+        self.different270 = False
+        self.differentFlip = False
 
 
 class TetrominoB(Piece):
@@ -95,6 +131,8 @@ class TetrominoB(Piece):
         self.possible_points = np.array([(0, 0), (0, 1), (2, 2), (3, 2), (3, 0)])
         self.different90 = True
         self.different180 = True
+        self.different270 = True
+        self.differentFlip = True
 
 
 class TetrominoC(Piece):
@@ -104,7 +142,9 @@ class TetrominoC(Piece):
         self.shape[1:3, 1] = True
         self.possible_points = np.array([(0, 0), (0, 1), (1, 2), (3, 2), (3, 1), (2, 0)])
         self.different90 = True
-        self.different180 = True
+        self.different180 = False
+        self.different270 = False
+        self.differentFlip = True
 
 
 class TetrominoD(Piece):
@@ -112,6 +152,10 @@ class TetrominoD(Piece):
         super().__init__(boundingBoxSize=(2, 2))
         self.shape[:, :] = True
         self.possible_points = np.array([(0, 0), (2, 0), (0, 2), (2, 2)])
+        self.differentFlip = False
+        self.different90 = False
+        self.different180 = False
+        self.different270 = False
 
 
 class TetrominoE(Piece):
@@ -122,6 +166,8 @@ class TetrominoE(Piece):
         self.possible_points = np.array([(0, 0), (0, 1), (1, 2), (2, 2), (3, 1), (3, 0)])
         self.different90 = True
         self.different180 = True
+        self.different270 = True
+        self.differentFlip = False
 
 
 class PentominoF(Piece):
@@ -133,6 +179,8 @@ class PentominoF(Piece):
         self.possible_points = np.array([(1, 0), (0, 1), (0, 3), (1, 3), (3, 2), (3, 1), (2, 0)])
         self.different90 = True
         self.different180 = True
+        self.different270 = True
+        self.differentFlip = True
 
 
 class PentominoI(Piece):
@@ -141,6 +189,9 @@ class PentominoI(Piece):
         self.shape[:, :] = True
         self.possible_points = np.array([(0, 0), (5, 0), (0, 1), (5, 1)])
         self.different90 = True
+        self.different180 = False
+        self.different270 = False
+        self.differentFlip = False
 
 
 class PentominoL(Piece):
@@ -151,6 +202,8 @@ class PentominoL(Piece):
         self.possible_points = np.array([(0, 0), (0, 2), (1, 2), (4, 1), (4, 0)])
         self.different90 = True
         self.different180 = True
+        self.different270 = True
+        self.differentFlip = True
 
 
 class PentominoN(Piece):
@@ -161,6 +214,8 @@ class PentominoN(Piece):
         self.possible_points = np.array([(0, 0), (0, 1), (1, 2), (5, 2), (5, 1), (2, 0)])
         self.different90 = True
         self.different180 = True
+        self.different270 = True
+        self.differentFlip = True
 
 
 class PentominoP(Piece):
@@ -171,6 +226,8 @@ class PentominoP(Piece):
         self.possible_points = np.array([(0, 0), (0, 2), (2, 2), (3, 1), (3, 0)])
         self.different90 = True
         self.different180 = True
+        self.different270 = True
+        self.differentFlip = True
 
 
 class PentominoT(Piece):
@@ -181,6 +238,8 @@ class PentominoT(Piece):
         self.possible_points = np.array([(0, 0), (0, 3), (1, 3), (3, 2), (3, 1), (1, 0)])
         self.different90 = True
         self.different180 = True
+        self.different270 = True
+        self.differentFlip = False
 
 
 class PentominoU(Piece):
@@ -192,6 +251,8 @@ class PentominoU(Piece):
         self.possible_points = np.array([(0, 0), (0, 2), (3, 2), (3, 0), (2, 0), (1, 0)])
         self.different90 = True
         self.different180 = True
+        self.different270 = True
+        self.differentFlip = False
 
 
 class PentominoV(Piece):
@@ -202,6 +263,8 @@ class PentominoV(Piece):
         self.possible_points = np.array([(0, 0), (0, 1), (2, 3), (3, 3), (3, 0)])
         self.different90 = True
         self.different180 = True
+        self.different270 = True
+        self.differentFlip = False
 
 
 class PentominoW(Piece):
@@ -213,6 +276,8 @@ class PentominoW(Piece):
         self.possible_points = np.array([(0, 0), (0, 2), (1, 3), (3, 3), (3, 2), (2, 1), (1, 0)])
         self.different90 = True
         self.different180 = True
+        self.different270 = True
+        self.differentFlip = False
 
 
 class PentominoX(Piece):
@@ -221,6 +286,10 @@ class PentominoX(Piece):
         self.shape[1, :] = True
         self.shape[:, 1] = True
         self.possible_points = np.array([(1, 0), (0, 1), (0, 2), (1, 3), (2, 3), (3, 2), (3, 1), (2, 0)])
+        self.different90 = False
+        self.different180 = False
+        self.different270 = False
+        self.differentFlip = False
 
 
 class PentominoY(Piece):
@@ -241,13 +310,42 @@ class PentominoZ(Piece):
         self.shape[2, 1:3] = True
         self.possible_points = np.array([(0, 0), (0, 2), (2, 3), (3, 3), (3, 1), (1, 0)])
         self.different90 = True
-        self.different180 = True
+        self.different180 = False
+        self.different270 = False
+        self.differentFlip = True
 
 
 def get_all_pieces():
     return [Monomino(), Domino(), TriominoA(), TriominoB(), TetrominoA(), TetrominoB(), TetrominoC(), TetrominoD(),
             TetrominoE(), PentominoF(), PentominoI(), PentominoL(), PentominoN(), PentominoP(), PentominoT(),
             PentominoU(), PentominoV(), PentominoW(), PentominoX(), PentominoY(), PentominoZ()]
+
+
+def get_all_unique_pieces():
+    unique_pieces = []
+    all_pieces = get_all_pieces()
+    for idx, piece in enumerate(all_pieces):
+        combinations = [piece]
+        for i in range(1, 4):
+            should_draw = piece.is_unique(k=i, is_flipped=False)
+            if not should_draw:
+                continue
+            rot_piece = copy.deepcopy(piece)
+            rot_piece.rotate(i)
+            combinations.append(rot_piece)
+        flipped = copy.deepcopy(piece)
+        flipped.flip()
+        if piece.differentFlip:
+            combinations.append(flipped)
+            for i in range(1, 4):
+                should_draw = piece.is_unique(k=i, is_flipped=True)
+                if not should_draw:
+                    continue
+                rot_piece = copy.deepcopy(flipped)
+                rot_piece.rotate(i)
+                combinations.append(rot_piece)
+        unique_pieces.append(combinations)
+    return unique_pieces
 
 
 def test():
