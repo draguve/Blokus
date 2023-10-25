@@ -23,7 +23,6 @@ class PostInitCaller(type):
         return obj
 
 
-# TODO: make sure the datatype stays consistent
 class Piece(metaclass=PostInitCaller):
     def __init__(self, boundingBoxSize=(1, 1)):
         self.collision_mask = None
@@ -38,6 +37,7 @@ class Piece(metaclass=PostInitCaller):
 
     def __post_init__(self):
         self.collision_mask = signal.convolve2d(self.shape, collision_filter).astype(bool)
+        self.possible_points = self.possible_points.astype(np.int8)
 
     def is_unique(self, k, is_flipped):
         if is_flipped:
@@ -66,7 +66,7 @@ class Piece(metaclass=PostInitCaller):
         p = self.possible_points
         self.bounding_box_size = np.array(self.shape.shape)
         self.rotate_point = self.bounding_box_size / 2
-        self.possible_points = np.rint(((R @ (p - o).T).T + self.rotate_point))
+        self.possible_points = np.rint(((R @ (p - o).T).T + self.rotate_point)).astype(np.int8)
 
     def flip(self):
         self.shape = np.fliplr(self.shape)
@@ -78,7 +78,7 @@ class Piece(metaclass=PostInitCaller):
         R = np.array([[1, 0, 0, ],
                       [0, -1, 0, ],
                       [0, 0, -1]])
-        self.possible_points = np.rint((R @ (points - o).T).T + o)[:, 0:2]
+        self.possible_points = np.rint((R @ (points - o).T).T + o)[:, 0:2].astype(np.int8)
 
 
 class Monomino(Piece):
