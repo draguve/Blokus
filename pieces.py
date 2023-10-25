@@ -2,6 +2,7 @@ import numpy as np
 
 
 # TODO: Need to able to flip all options
+# TODO: make sure the datatype stays consistent
 class Piece:
     def __init__(self, boundingBoxSize=(1, 1)):
         self.possible_points = None
@@ -14,13 +15,13 @@ class Piece:
     # rotates anticlockwise k times
     def rotate(self, k=1):
         k = k % 4
-        match (k, self.different90, self.different180):
-            case (0, _, _):
-                return
-            case (1 | 3, False, _):
-                return
-            case (2, _, False):
-                return
+        # match (k, self.different90, self.different180):
+        #     case (0, _, _):
+        #         return
+        #     case (1 | 3, False, _):
+        #         return
+        #     case (2, _, False):
+        #         return
         self.shape = np.rot90(self.shape, k=k)
         degrees = k * 90
         angle = np.deg2rad(degrees)
@@ -32,6 +33,17 @@ class Piece:
         self.bounding_box_size = np.array(self.shape.shape)
         self.rotate_point = self.bounding_box_size / 2
         self.possible_points = np.rint(((R @ (p - o).T).T + self.rotate_point))
+
+    def flip(self):
+        self.shape = np.fliplr(self.shape)
+        points = np.zeros((self.possible_points.shape[0], 3))
+        points[:, 0:2] = self.possible_points
+        o = np.zeros((3,))
+        o[0:2] = self.rotate_point
+        R = np.array([[1, 0, 0, ],
+                      [0, -1, 0, ],
+                      [0, 0, -1]])
+        self.possible_points = np.rint((R @ (points - o).T).T + o)[:, 0:2]
 
 
 class Monomino(Piece):
@@ -230,6 +242,12 @@ class PentominoZ(Piece):
         self.possible_points = np.array([(0, 0), (0, 2), (2, 3), (3, 3), (3, 1), (1, 0)])
         self.different90 = True
         self.different180 = True
+
+
+def get_all_pieces():
+    return [Monomino(), Domino(), TriominoA(), TriominoB(), TetrominoA(), TetrominoB(), TetrominoC(), TetrominoD(),
+            TetrominoE(), PentominoF(), PentominoI(), PentominoL(), PentominoN(), PentominoP(), PentominoT(),
+            PentominoU(), PentominoV(), PentominoW(), PentominoX(), PentominoY(), PentominoZ()]
 
 
 def test():
