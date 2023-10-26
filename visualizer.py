@@ -8,6 +8,8 @@ from matplotlib.patches import Rectangle
 
 from pieces import *
 
+# import blockus
+
 colors = ["blue", "orange", "red", "green", "purple"]
 
 
@@ -136,8 +138,20 @@ def plot_all_pieces():
 
 def plot_points(points_to_plot, origin_point=(0, 0), color="blue", s=None):
     delta = np.array(origin_point)
+    if points_to_plot.shape[0] <= 0:
+        return
     points_to_plot = (points_to_plot + delta).T
     plt.scatter(points_to_plot[0], points_to_plot[1], c=color, s=s)
+
+
+def plot_board(board):
+    fig, ax = plt.subplots()
+    plt.xlim([-1, 21])
+    plt.ylim([-1, 21])
+    for i in range(4):
+        plot_box(ax, board.playerBoards[i], (0, 0), colors[i])
+        plot_points(np.array(board.positions_available_per_player[i]), (0, 0), colors[-1])
+    plt.show()
 
 
 def test():

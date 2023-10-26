@@ -1,13 +1,15 @@
 import copy
 import random
+from numba import typed
 
+import numba
 import numpy as np
-from numba import cuda
+from numba import cuda, uint8
 from numba import jit
 from util import timeit
 
 from pieces import get_all_unique_pieces
-from visualizer import plot_piece_and_save
+import visualizer
 
 MAX_BOUNDING_BOX_FOR_SHAPE = 5
 MAX_BOUNDING_BOX_FOR_MASK = 7
@@ -59,6 +61,30 @@ def check_if_piece_possible_cuda(
                     location_of_piece_origin_x + i, location_of_piece_origin_y + j]
                 output = output and not is_clash
         is_valid_placement[pos] = output
+
+
+# typed.List(typed.List(numba.uint8))(numba.uint8[:, :], int, numba.uint8[:], numba.boolean[:, :],typed.List(typed.List(numba.uint8)))
+# @jit(nopython=True)
+def check_and_add_points(all_join_points, board_size, piece_origin, player_board,
+                         player_available_points):
+    # player_available_points = player_available_points[0:-1] #if jit optim needs to be enabled
+    for i in range(all_join_points.shape[0]):
+        if all_join_points[i, 0] == 0 or all_join_points[i, 1] == 0:
+            continue
+        if all_join_points[i, 0] == board_size or all_join_points[i, 1] == board_size:
+            continue
+        if np.all(all_join_points[i] == piece_origin):
+            continue
+        if is_point_surrounded(player_board, all_join_points[i]):
+            continue
+        player_available_points.append(all_join_points[i])
+    player_available_points = [x for x in player_available_points if not is_point_surrounded(player_board, x)]
+    return player_available_points
+
+
+@jit(nopython=True)
+def is_point_surrounded(player_board, point):
+    return np.sum(player_board[point[0] - 1:point[0] + 1, point[1] - 1:point[1] + 1]) > 1
 
 
 @jit(nopython=True)
@@ -115,7 +141,6 @@ class BlokusBoard:
         self.maskingBoards = np.zeros((4, boardSize + 2, boardSize + 2), dtype=bool)
         self.playerBoards = self.maskingBoards[:, 1:21, 1:21]
         self.full_board = np.zeros((boardSize, boardSize), dtype=np.int8)
-        # TODO: can prob cache this if required(to reduce the amount of mem it takes for each match)
         all_unique_pieces = get_all_unique_pieces()
         total_number_shapes = sum(len(v) for v in all_unique_pieces)
         max_length_of_join_points = max(max([r.possible_points.shape[0] for r in p]) for p in all_unique_pieces)
@@ -189,6 +214,8 @@ class BlokusBoard:
         number_of_pieces_available = sum(len(v) for v in self.available_pieces_per_player[self._player_turn])
         possible_points = np.array(self.positions_available_per_player[self._player_turn])
         number_possible_points = possible_points.shape[0]
+        if number_possible_points == 0:
+            return None, None, None
         number_of_possible_positions_per_point = number_of_pieces_available * self.max_length_of_join_points
         target_piece_ids = np.zeros(number_of_possible_positions_per_point, dtype=np.int8)
         target_join_points = np.zeros((number_of_possible_positions_per_point, 2), dtype=np.int8)
@@ -227,6 +254,8 @@ class BlokusBoard:
             is_valid_placement
         )
         valid_results = is_valid_placement.nonzero()[0]
+        if len(valid_results) < 1:
+            return None, None, None
         return target_board_points[valid_results], all_target_piece_ids[valid_results], all_target_piece_point_ids[
             valid_results]
 
@@ -241,35 +270,31 @@ class BlokusBoard:
         piece_bb_end = piece_origin + piece_shape
         if not self.check_if_move_valid(board_point, piece_id, piece_point_id):
             return False
-        self.playerBoards[self._player_turn, piece_origin[0]:piece_bb_end[0], piece_origin[1]:piece_bb_end[1]] |= self.all_unique_pieces[piece_id][0:piece_shape[0], 0:piece_shape[1]]
+        self.playerBoards[self._player_turn, piece_origin[0]:piece_bb_end[0], piece_origin[1]:piece_bb_end[1]] |= \
+            self.all_unique_pieces[piece_id][0:piece_shape[0], 0:piece_shape[1]]
         self.full_board[self.playerBoards[self._player_turn]] = self._player_turn + 1
         self.positions_available_per_player[self._player_turn].remove(tuple(board_point))
         # add newly available points
         all_join_points = self.all_join_points[piece_id][0:self.all_join_points_size[piece_id]] + piece_origin
-        for i in range(all_join_points.shape[0]):
-            if all_join_points[i, 0] == 0 or all_join_points[i, 1] == 0:
-                continue
-            if all_join_points[i, 0] == self.board_size or all_join_points[i, 1] == self.board_size:  # TODO Check if this is correct
-                continue
-            if np.all(all_join_points[i] == piece_origin):
-                continue
-            self.positions_available_per_player[self._player_turn].append(tuple(all_join_points[i]))
+        # self.positions_available_per_player[self._player_turn].append(np.array((-1, -1), dtype=np.int8)) #for the optim if required
+        all_items = check_and_add_points(all_join_points, self.board_size, piece_origin, self.playerBoards[self._player_turn],
+                             self.positions_available_per_player[self._player_turn])
+        self.positions_available_per_player[self._player_turn] = [tuple(item) for item in all_items]
         u_index = self.piece_id_to_unique_piece_index[piece_id]
         self.available_pieces_per_player[self._player_turn][u_index] = []
         self._player_turn = (self._player_turn + 1) % 4
 
-    def visualize_board(self):
-        pass
 
-
-def test():
+def check():
     board = BlokusBoard()
     for i in range(10):
         results = board.current_player_get_all_valid_moves()
-        rand = random.randint(0, results[1].shape[0])
+        if results[0] is None:
+            break
+        rand = random.randint(0, results[1].shape[0] - 1)
         board.current_player_submit_move(results[0][rand], results[1][rand], results[2][rand])
-    board.visualize_board()
+    visualizer.plot_board(board)
 
 
 if __name__ == '__main__':
-    test()
+    check()
