@@ -11,14 +11,26 @@ from pieces import *
 colors = ["blue", "orange", "red", "green", "purple"]
 
 
-# TODO: make this better, allow colors and delta to point as inputs
-def plot_piece(piece: Piece):
+def plot_piece_base(piece):
     fig, ax = plt.subplots()
     plt.xlim([-1, 6])
     plt.ylim([-1, 6])
     plot_piece_box(ax, piece)
     plot_points(piece.possible_points)
+
+
+# TODO: make this better, allow colors and delta to point as inputs
+def plot_piece(piece: Piece):
+    plot_piece_base(piece)
     plt.show()
+
+
+def plot_piece_and_save(piece, filename):
+    fig, ax = plt.subplots()
+    plt.xlim([-1, 6])
+    plt.ylim([-1, 6])
+    plot_box(ax, piece, (0, 0), "red")
+    plt.savefig(f"{filename}.png", format="png")
 
 
 def plot_piece_box(ax, piece: Piece, pos=(0, 0), color="red"):
@@ -109,7 +121,7 @@ def plot_collision_masks():
             y = math.floor(location_idx / number_of_figures_per_side) * stride
             plot_box(ax, piece.collision_mask, (x, y), "red")
             plot_box(ax, piece.shape, (x + 1, y + 1), "blue")
-            plot_points(piece.possible_points, (x + 1, y + 1), "green",s=2)
+            plot_points(piece.possible_points, (x + 1, y + 1), "green", s=2)
             location_idx += 1
     # plt.savefig("docs/all_collision_masks.png", format="png", dpi=1200)
     plt.show()
