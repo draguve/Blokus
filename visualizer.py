@@ -151,7 +151,8 @@ def plot_board(board):
     plt.ylim([-1, 21])
     for i in range(4):
         plot_box(ax, board.playerBoards[i], (0, 0), colors[i])
-        plot_points(np.array(board.positions_available_per_player[i]), (0, 0), colors[-1])
+    for i in range(4):
+        plot_points(np.array(board.open_board_points[i]), (0, 0), colors[-1])
 
 
 def plot_show_board(board):
