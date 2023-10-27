@@ -1,8 +1,10 @@
-from blockus import BlokusBoard
+from blokus import BlokusBoard
+from players.BiggestFirst import BiggestFirstPlayer
 from players.RandomPlayer import RandomPlayer
+from players.SmallestFirstPlayer import SmallestFirstPlayer
 from util import random_id, check_for_dir
 import numpy as np
-import os
+
 from visualizer import plot_store_board, plot_remaining_pieces
 
 VISUALIZE_EVERY_STEP = True
@@ -10,12 +12,12 @@ visualizer_location = "match_replays/"
 
 
 class BlokusSim:
-    def __init__(self, players):
+    def __init__(self, board, players):
         if len(players) < 2:
             raise NotImplementedError
         if len(players) == 3:
             raise NotImplementedError
-        self.board = BlokusBoard()
+        self.board = board
         self.game_id = random_id(10)
         self.players = players
         self.step = 0
@@ -71,8 +73,9 @@ class BlokusSim:
 
 
 def check():
-    players = [RandomPlayer(), RandomPlayer()]
-    sim = BlokusSim(players)
+    board = BlokusBoard()
+    players = [SmallestFirstPlayer(board), BiggestFirstPlayer(board)]
+    sim = BlokusSim(board, players)
     sim.run_steps(21 * 4)
     sim.board.current_player_get_all_valid_moves()
     print(f"Matches {sim.get_current_score()}")

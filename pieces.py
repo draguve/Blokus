@@ -222,10 +222,10 @@ class PentominoL(Piece):
 
 class PentominoN(Piece):
     def __init__(self):
-        super().__init__(boundingBoxSize=(5, 2))
+        super().__init__(boundingBoxSize=(4, 2))
         self.shape[0:2, 0] = True
-        self.shape[1:5, 1] = True
-        self.possible_points = np.array([(0, 0), (0, 1), (1, 2), (5, 2), (5, 1), (2, 0)])
+        self.shape[1:4, 1] = True
+        self.possible_points = np.array([(0, 0), (0, 1), (1, 2), (4, 2), (4, 1), (2, 0)])
         self.different90 = True
         self.different180 = True
         self.different270 = True

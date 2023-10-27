@@ -8,9 +8,9 @@ from matplotlib.patches import Rectangle
 
 from pieces import *
 
-# import blockus
 
 colors = ["blue", "orange", "red", "green", "purple"]
+dot_colors = ["#0000b2", "#b27300", "#b20000", "#003300"]
 
 
 def plot_piece_base(piece):
@@ -152,7 +152,8 @@ def plot_board(board):
     for i in range(4):
         plot_box(ax, board.playerBoards[i], (0, 0), colors[i])
     for i in range(4):
-        plot_points(np.array(board.open_board_points[i]), (0, 0), colors[-1])
+        s = 20 - 3 * i
+        plot_points(np.array(board.open_board_points[i]), (0, 0), dot_colors[i], s=s)
 
 
 def plot_show_board(board):

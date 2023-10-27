@@ -16,55 +16,55 @@ MAX_BOUNDING_BOX_FOR_MASK = 7
 THREADS_PER_BLOCK = 1
 
 
-@jit(nopython=True,parallel=True)
+@jit(nopython=True, parallel=True)
 def is_point_surrounded(player_board, point):
     return np.sum(player_board[point[0] - 1:point[0] + 1, point[1] - 1:point[1] + 1]) > 1
 
 
 # one issue is the surrounded technique does not work in the case when a vertex gets surrounded after placing the new tile and only get removed after the next iteration
-@jit(nopython=True,parallel=True)
-def update_open_points(new_open_points, current_open_points, board_point, piece_origin, current_board,
-                       new_piece_join_points, piece_point):
-    index_new_points = 0
+@jit(nopython=True, parallel=True)
+def update_open_points(new_open_points, current_open_vertexes, board_point, piece_origin, current_board,
+                       new_piece_join_vertexes, piece_vertex):
+    index_new_vertexes = 0
     found = False
-    number_possible_points = current_open_points.shape[0]
+    number_possible_vertexes = current_open_vertexes.shape[0]
     board_shape = current_board.shape
-    for i in range(number_possible_points):
-        if np.all(current_open_points[i] == board_point):
+    for i in range(number_possible_vertexes):
+        if np.all(current_open_vertexes[i] == board_point):
             found = True
         else:
-            if is_point_surrounded(current_board, current_open_points[i]):
+            if is_point_surrounded(current_board, current_open_vertexes[i]):
                 continue
-            new_open_points[index_new_points] = current_open_points[i]
-            index_new_points += 1
+            new_open_points[index_new_vertexes] = current_open_vertexes[i]
+            index_new_vertexes += 1
     if not found:
         return False, None
-    number_new_piece_join_points = new_piece_join_points.shape[0]
-    possible_join_points = new_piece_join_points + piece_origin
-    piece_point_where_added = piece_point + piece_origin
-    for i in range(number_new_piece_join_points):
-        if np.all(possible_join_points[i] == piece_point_where_added):
+    number_new_piece_join_vertexes = new_piece_join_vertexes.shape[0]
+    possible_join_vertexes = new_piece_join_vertexes + piece_origin
+    piece_vertex_where_added = piece_vertex + piece_origin
+    for i in range(number_new_piece_join_vertexes):
+        if np.all(possible_join_vertexes[i] == piece_vertex_where_added):
             continue
-        if possible_join_points[i, 0] == 0 or possible_join_points[i, 1] == 0:
+        if possible_join_vertexes[i, 0] == 0 or possible_join_vertexes[i, 1] == 0:
             continue
-        if possible_join_points[i, 0] == board_shape[0] or possible_join_points[i, 1] == board_shape[1]:
+        if possible_join_vertexes[i, 0] == board_shape[0] or possible_join_vertexes[i, 1] == board_shape[1]:
             continue
-        if is_point_surrounded(current_board, possible_join_points[i]):
+        if is_point_surrounded(current_board, possible_join_vertexes[i]):
             continue
-        new_open_points[index_new_points] = possible_join_points[i]
-        index_new_points += 1
-    return True, new_open_points[:index_new_points]
+        new_open_points[index_new_vertexes] = possible_join_vertexes[i]
+        index_new_vertexes += 1
+    return True, new_open_points[:index_new_vertexes]
 
 
-@jit(nopython=True,parallel=True)
+@jit(nopython=True)
 def check_if_piece_possible(
         masking_board,
         full_board,
         all_pieces,
         all_piece_lengths,
         all_masks,
-        target_board_points,
-        target_piece_points,
+        target_board_vertexes,
+        target_piece_vertexes,
         target_piece_ids,
         is_valid_placement
 ):
@@ -74,8 +74,8 @@ def check_if_piece_possible(
         this_piece_shape = all_piece_lengths[id]
         this_piece_mask = all_masks[id]
 
-        target_board_point = target_board_points[pos]
-        target_piece_point = target_piece_points[pos]
+        target_board_point = target_board_vertexes[pos]
+        target_piece_point = target_piece_vertexes[pos]
         location_of_piece_origin_x = target_board_point[0] - target_piece_point[0]
         location_of_piece_origin_y = target_board_point[1] - target_piece_point[1]
         # out of bound check here
@@ -261,18 +261,17 @@ class BlokusBoard:
     def current_player_skip_turn(self):
         self._player_turn = (self._player_turn + 1) % 4
 
-
-def check():
-    board = BlokusBoard()
-    for i in range(100):
-        results = board.current_player_get_all_valid_moves()
-        if results[0] is None:
-            board.current_player_skip_turn()
-            continue
-        rand = random.randint(0, results[1].shape[0] - 1)
-        board.current_player_submit_move(results[0][rand], results[1][rand], results[2][rand])
-        visualizer.plot_store_board(board, f"board_{i}")
-
-
-if __name__ == '__main__':
-    check()
+# def check():
+#     board = BlokusBoard()
+#     for i in range(10):
+#         results = board.current_player_get_all_valid_moves()
+#         if results[0] is None:
+#             board.current_player_skip_turn()
+#             continue
+#         rand = random.randint(0, results[1].shape[0] - 1)
+#         board.current_player_submit_move(results[0][rand], results[1][rand], results[2][rand])
+#         # visualizer.plot_store_board(board, f"board_{i}")
+#
+#
+# if __name__ == '__main__':
+#     check()
