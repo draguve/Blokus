@@ -3,7 +3,7 @@ from players.RandomPlayer import RandomPlayer
 from util import random_id, check_for_dir
 import numpy as np
 import os
-from visualizer import plot_store_board
+from visualizer import plot_store_board, plot_remaining_pieces
 
 VISUALIZE_EVERY_STEP = True
 visualizer_location = "match_replays/"
@@ -48,11 +48,17 @@ class BlokusSim:
             if not result:
                 self.board.current_player_skip_turn()
         self.visualize_board("end")
+        self.visualize_remaining()
 
     def visualize_board(self, extra=""):
         if VISUALIZE_EVERY_STEP:
             check_for_dir(f"{visualizer_location}/{self.game_id}/")
             plot_store_board(self.board, f"{visualizer_location}/{self.game_id}/match_{self.step}{extra}")
+
+    def visualize_remaining(self):
+        if VISUALIZE_EVERY_STEP:
+            check_for_dir(f"{visualizer_location}/{self.game_id}/")
+            plot_remaining_pieces(self.board, f"{visualizer_location}/{self.game_id}/remaining_{self.step}")
 
     def get_current_score(self):
         score = np.zeros(len(self.players), dtype=int)
@@ -68,6 +74,7 @@ def check():
     players = [RandomPlayer(), RandomPlayer()]
     sim = BlokusSim(players)
     sim.run_steps(21 * 4)
+    sim.board.current_player_get_all_valid_moves()
     print(f"Matches {sim.get_current_score()}")
 
 

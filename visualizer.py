@@ -33,6 +33,7 @@ def plot_piece_and_save(piece, filename):
     plt.ylim([-1, 6])
     plot_box(ax, piece, (0, 0), "red")
     plt.savefig(f"{filename}.png", format="png")
+    plt.close()
 
 
 def plot_piece_box(ax, piece: Piece, pos=(0, 0), color="red"):
@@ -161,7 +162,37 @@ def plot_show_board(board):
 def plot_store_board(board, filename):
     plot_board(board)
     plt.savefig(f"{filename}.png", format="png")
-    plt.clf()
+    plt.close()
+
+
+def plot_remaining_pieces(board, filename):
+    fig, ax = plt.subplots()
+
+    to_plot = 0
+    for i in range(4):
+        for upiece in board.available_pieces_per_player[i]:
+            if len(upiece) == 0:
+                continue
+            to_plot += 1
+
+    number_of_figures_per_side = math.ceil(math.sqrt(to_plot))
+    stride = 6
+    limit = number_of_figures_per_side * stride + 1
+    plt.xlim([-1, limit])
+    plt.ylim([-1, limit])
+    index = 0
+    for i in range(4):
+        for upiece in board.available_pieces_per_player[i]:
+            if len(upiece) == 0:
+                continue
+            piece_id = upiece[0]
+            piece = board.all_unique_pieces[piece_id]
+            x = (index % number_of_figures_per_side) * stride
+            y = math.floor(index / number_of_figures_per_side) * stride
+            plot_box(ax, piece, (x, y), colors[i])
+            index += 1
+    plt.savefig(f"{filename}.png", format="png")
+    plt.close()
 
 
 def test():
