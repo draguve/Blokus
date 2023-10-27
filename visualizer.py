@@ -151,7 +151,17 @@ def plot_board(board):
     for i in range(4):
         plot_box(ax, board.playerBoards[i], (0, 0), colors[i])
         plot_points(np.array(board.positions_available_per_player[i]), (0, 0), colors[-1])
+
+
+def plot_show_board(board):
+    plot_board(board)
     plt.show()
+
+
+def plot_store_board(board, filename):
+    plot_board(board)
+    plt.savefig(f"{filename}.png", format="png")
+    plt.clf()
 
 
 def test():

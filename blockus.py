@@ -209,7 +209,7 @@ class BlokusBoard:
         )
         return is_valid_placement[0, 0]
 
-    @timeit
+    # @timeit
     def current_player_get_all_valid_moves(self):
         number_of_pieces_available = sum(len(v) for v in self.available_pieces_per_player[self._player_turn])
         possible_points = np.array(self.positions_available_per_player[self._player_turn])
@@ -277,11 +277,16 @@ class BlokusBoard:
         # add newly available points
         all_join_points = self.all_join_points[piece_id][0:self.all_join_points_size[piece_id]] + piece_origin
         # self.positions_available_per_player[self._player_turn].append(np.array((-1, -1), dtype=np.int8)) #for the optim if required
-        all_items = check_and_add_points(all_join_points, self.board_size, piece_origin, self.playerBoards[self._player_turn],
-                             self.positions_available_per_player[self._player_turn])
+        all_items = check_and_add_points(all_join_points, self.board_size, piece_origin,
+                                         self.playerBoards[self._player_turn],
+                                         self.positions_available_per_player[self._player_turn])
         self.positions_available_per_player[self._player_turn] = [tuple(item) for item in all_items]
         u_index = self.piece_id_to_unique_piece_index[piece_id]
         self.available_pieces_per_player[self._player_turn][u_index] = []
+        self._player_turn = (self._player_turn + 1) % 4
+        return True
+
+    def current_player_skip_turn(self):
         self._player_turn = (self._player_turn + 1) % 4
 
 
