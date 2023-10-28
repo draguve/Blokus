@@ -1,7 +1,9 @@
 from blokus import BlokusBoard
+from players.AimCenter import AimCenterPlayer
+from players.AvoidCenter import AvoidCenterPlayer
 from players.BiggestFirst import BiggestFirstPlayer
-from players.RandomPlayer import RandomPlayer
-from players.SmallestFirstPlayer import SmallestFirstPlayer
+from players.Random import RandomPlayer
+from players.SmallestFirst import SmallestFirstPlayer
 from util import random_id, check_for_dir
 import numpy as np
 
@@ -74,7 +76,7 @@ class BlokusSim:
 
 def check():
     board = BlokusBoard()
-    players = [SmallestFirstPlayer(board), BiggestFirstPlayer(board)]
+    players = [AimCenterPlayer(board), AvoidCenterPlayer(board)]
     sim = BlokusSim(board, players)
     sim.run_steps(21 * 4)
     sim.board.current_player_get_all_valid_moves()
