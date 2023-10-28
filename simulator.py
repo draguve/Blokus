@@ -9,7 +9,7 @@ import numpy as np
 
 from visualizer import plot_store_board, plot_remaining_pieces
 
-VISUALIZE_EVERY_STEP = True
+VISUALIZE_EVERY_STEP = False
 visualizer_location = "match_replays/"
 
 
@@ -24,12 +24,13 @@ class BlokusSim:
         self.players = players
         self.step = 0
         self.no_more_moves = np.zeros(4, dtype=bool)
+        self.player_steps = np.zeros(len(players), dtype=int)
 
     def run_steps(self, num_steps):
         for i in range(num_steps):
             self.visualize_board()
             if self.is_finished():
-                print(f"{self.game_id} match finished")
+                # print(f"{self.game_id} match finished")
                 break
             self.step += 1
             current_player_id = self.board.player_turn() % len(self.players)
@@ -49,10 +50,20 @@ class BlokusSim:
             result = self.board.current_player_submit_move(possible_moves[0][chosen_move],
                                                            possible_moves[1][chosen_move],
                                                            possible_moves[2][chosen_move])
+            self.player_steps[current_player_id] += 1
             if not result:
                 self.board.current_player_skip_turn()
         self.visualize_board("end")
         self.visualize_remaining()
+
+    def get_number_of_remaining_pieces(self):
+        remaining_pieces = np.zeros(len(self.players), dtype=int)
+        for i in range(4):
+            current_player_id = self.board.player_turn() % len(self.players)
+            for v in self.board.available_pieces_per_player[i]:
+                if len(v) > 0:
+                    remaining_pieces[current_player_id] += 1
+        return remaining_pieces
 
     def visualize_board(self, extra=""):
         if VISUALIZE_EVERY_STEP:
@@ -79,7 +90,6 @@ def check():
     players = [AimCenterPlayer(board), AvoidCenterPlayer(board)]
     sim = BlokusSim(board, players)
     sim.run_steps(21 * 4)
-    sim.board.current_player_get_all_valid_moves()
     print(f"Matches {sim.get_current_score()}")
 
 

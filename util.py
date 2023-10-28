@@ -5,6 +5,10 @@ import time
 import os
 
 
+def get_timestamp():
+    return time.time()
+
+
 def check_for_dir(path):
     if not os.path.exists(path):
         os.makedirs(path)
@@ -24,4 +28,4 @@ def timeit(func):
 
 
 def random_id(n=10):
-    return ''.join(random.choices(string.ascii_uppercase + string.ascii_uppercase + string.digits, k=n))
+    return ''.join(random.choices(string.ascii_uppercase + string.ascii_lowercase + string.digits, k=n))
