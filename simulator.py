@@ -2,6 +2,7 @@ from blokus import BlokusBoard
 from players.AimCenter import AimCenterPlayer
 from players.AvoidCenter import AvoidCenterPlayer
 from players.BiggestFirst import BiggestFirstPlayer
+from players.CharlieInConfusion import CharlieInConfusion
 from players.Random import RandomPlayer
 from players.SmallestFirst import SmallestFirstPlayer
 from util import random_id, check_for_dir
@@ -87,7 +88,7 @@ class BlokusSim:
 
 def check():
     board = BlokusBoard()
-    players = [AimCenterPlayer(board), AvoidCenterPlayer(board)]
+    players = [CharlieInConfusion(board), AvoidCenterPlayer(board)]
     sim = BlokusSim(board, players)
     sim.run_steps(21 * 4)
     print(f"Matches {sim.get_current_score()}")

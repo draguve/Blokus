@@ -7,6 +7,7 @@ from simulator import BlokusSim
 from util import get_timestamp
 from tqdm import tqdm
 import itertools
+import random
 
 from players import Player
 from players.SmallestFirst import SmallestFirstPlayer
@@ -14,6 +15,10 @@ from players.AimCenter import AimCenterPlayer
 from players.AvoidCenter import AvoidCenterPlayer
 from players.BiggestFirst import BiggestFirstPlayer
 from players.Random import RandomPlayer
+from players.AliceInWonderland import AliceInWonderlandPlayer
+from players.BigCenter import BigCenterPlayer
+from players.BobInLife import BobInLifePlayer
+from players.CharlieInConfusion import CharlieInConfusion
 
 NUMBER_OF_MATCHES = 100
 
@@ -25,6 +30,10 @@ def get_players():
         BiggestFirstPlayer,
         RandomPlayer,
         SmallestFirstPlayer,
+        BigCenterPlayer,
+        AliceInWonderlandPlayer,
+        BobInLifePlayer,
+        CharlieInConfusion,
     ]
 
 
@@ -80,7 +89,33 @@ def main():
     for combo in itertools.combinations(players_ids, 2):
         match_counts[frozenset(combo)] = 0
 
-    for match in tqdm(iter(db), desc="Rating Old matches", total=len(db)):
+    player1_required = []
+    player2_required = []
+
+    for match in tqdm(iter(db), desc="Counting old matches", total=len(db)):
+        p1_id = match["player1_id"]
+        p2_id = match["player2_id"]
+        match_counts[frozenset((p1_id, p2_id))] += 1
+
+    for combo, played_matches in match_counts.items():
+        required_matches = NUMBER_OF_MATCHES - played_matches
+        players = list(combo)
+        player1_required.extend([players_id_to_class[players[0]]] * required_matches)
+        player2_required.extend([players_id_to_class[players[1]]] * required_matches)
+
+    if len(player1_required) > 0:
+        player1_required, player2_required = util.shuffle_together(player1_required, player2_required)
+
+        processPool = ProcessPool(nodes=8)
+        results = processPool.imap(play_match, player1_required, player2_required)
+
+        for match in tqdm(results, desc="Playing matches", total=len(player1_required)):
+            db.insert(match)
+
+    all_matches = db.all()
+    random.shuffle(all_matches)
+
+    for match in tqdm(all_matches, desc="Rating all matches"):
         p1_id = match["player1_id"]
         p2_id = match["player2_id"]
         match_counts[frozenset((p1_id, p2_id))] += 1
@@ -92,35 +127,6 @@ def main():
             match["player1_score"],
             match["player2_score"],
         )
-        # write code for glicko here
-
-    player1_required = []
-    player2_required = []
-
-    for combo, played_matches in match_counts.items():
-        required_matches = NUMBER_OF_MATCHES - played_matches
-        players = list(combo)
-        player1_required.extend([players_id_to_class[players[0]]] * required_matches)
-        player2_required.extend([players_id_to_class[players[1]]] * required_matches)
-
-    if len(player1_required)>0:
-        player1_required, player2_required = util.shuffle_together(player1_required, player2_required)
-
-        processPool = ProcessPool(nodes=8)
-        results = processPool.imap(play_match, player1_required, player2_required)
-
-        for match in tqdm(results, desc="Playing matches", total=len(player1_required)):
-            db.insert(match)
-            p1_id = match["player1_id"]
-            p2_id = match["player2_id"]
-            update_rating(
-                glicko,
-                player_id_to_rating,
-                p1_id,
-                p2_id,
-                match["player1_score"],
-                match["player2_score"],
-            )
 
     for player_id in players_ids:
         print(f"{players_id_to_class[player_id].__name__} -> {player_id_to_rating[player_id].mu}")
