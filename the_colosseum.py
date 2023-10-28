@@ -1,5 +1,6 @@
 from tinydb import TinyDB
 from pathos.multiprocessing import ProcessPool
+import util
 from glicko2.glicko2 import Glicko2
 import blokus
 from simulator import BlokusSim
@@ -51,6 +52,14 @@ def play_match(player1_class: type(Player), player2_class: type(Player)):
     return data
 
 
+def update_rating(glicko, id_dict, p1_id, p2_id, p1_score, p2_score):
+    drawn = p1_score == p2_score
+    if p1_score > p2_score:
+        id_dict[p1_id], id_dict[p2_id] = glicko.rate_1vs1(id_dict[p1_id], id_dict[p2_id], drawn)
+    else:
+        id_dict[p1_id], id_dict[p2_id] = glicko.rate_1vs1(id_dict[p1_id], id_dict[p2_id], drawn)
+
+
 def main():
     db = TinyDB('match_replays/played_matches.json')
     players = get_players()
@@ -71,23 +80,50 @@ def main():
     for combo in itertools.combinations(players_ids, 2):
         match_counts[frozenset(combo)] = 0
 
-    for match in db.all():
-        match_counts[frozenset((match["player1_id"], match["player2_id"]))] += 1
+    for match in tqdm(iter(db), desc="Rating Old matches", total=len(db)):
+        p1_id = match["player1_id"]
+        p2_id = match["player2_id"]
+        match_counts[frozenset((p1_id, p2_id))] += 1
+        update_rating(
+            glicko,
+            player_id_to_rating,
+            p1_id,
+            p2_id,
+            match["player1_score"],
+            match["player2_score"],
+        )
         # write code for glicko here
 
     player1_required = []
     player2_required = []
+
     for combo, played_matches in match_counts.items():
         required_matches = NUMBER_OF_MATCHES - played_matches
         players = list(combo)
         player1_required.extend([players_id_to_class[players[0]]] * required_matches)
         player2_required.extend([players_id_to_class[players[1]]] * required_matches)
 
-    processPool = ProcessPool(nodes=8)
-    results = processPool.imap(play_match, player1_required, player2_required)
+    if len(player1_required)>0:
+        player1_required, player2_required = util.shuffle_together(player1_required, player2_required)
 
-    for result in tqdm(results, desc="Playing matches", total=len(player1_required)):
-        db.insert(result)
+        processPool = ProcessPool(nodes=8)
+        results = processPool.imap(play_match, player1_required, player2_required)
+
+        for match in tqdm(results, desc="Playing matches", total=len(player1_required)):
+            db.insert(match)
+            p1_id = match["player1_id"]
+            p2_id = match["player2_id"]
+            update_rating(
+                glicko,
+                player_id_to_rating,
+                p1_id,
+                p2_id,
+                match["player1_score"],
+                match["player2_score"],
+            )
+
+    for player_id in players_ids:
+        print(f"{players_id_to_class[player_id].__name__} -> {player_id_to_rating[player_id].mu}")
 
 
 if __name__ == '__main__':

@@ -14,6 +14,13 @@ def check_for_dir(path):
         os.makedirs(path)
 
 
+def shuffle_together(list1, list2):
+    zipped = list(zip(list1, list2))
+    random.shuffle(zipped)
+    list1, list2 = zip(*zipped)
+    return list1, list2
+
+
 def timeit(func):
     @wraps(func)
     def timeit_wrapper(*args, **kwargs):
