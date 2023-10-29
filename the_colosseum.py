@@ -15,10 +15,15 @@ from players.AimCenter import AimCenterPlayer
 from players.AvoidCenter import AvoidCenterPlayer
 from players.BiggestFirst import BiggestFirstPlayer
 from players.Random import RandomPlayer
+from players.BigEdge import BigEdgePlayer
 from players.AliceInWonderland import AliceInWonderlandPlayer
 from players.BigCenter import BigCenterPlayer
 from players.BobInLife import BobInLifePlayer
 from players.CharlieInConfusion import CharlieInConfusion
+from players.DianaInJungle import DianaInJunglePlayer
+from players.EggHeadInFridge import EggHeadInFridgePlayer
+from players.FredrickIsPompus import FredrickIsPompusPlayer
+
 
 NUMBER_OF_MATCHES = 100
 
@@ -34,6 +39,10 @@ def get_players():
         AliceInWonderlandPlayer,
         BobInLifePlayer,
         CharlieInConfusion,
+        DianaInJunglePlayer,
+        EggHeadInFridgePlayer,
+        FredrickIsPompusPlayer,
+        BigEdgePlayer
     ]
 
 
