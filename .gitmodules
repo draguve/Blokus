@@ -1,3 +1,6 @@
 [submodule "glicko2"]
 	path = glicko2
 	url = https://github.com/sublee/glicko2.git
+[submodule "muzero"]
+	path = muzero
+	url = https://github.com/draguve/muzero-general
