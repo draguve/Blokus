@@ -103,6 +103,51 @@ def check_if_piece_possible(
         is_valid_placement[pos] = output
 
 
+# @jit(nopython=True)
+def get_all_valid_moves(
+        current_player,
+        available_uids_per_player,
+        open_board_locations,
+        unique_id_to_rotation_id,
+        unique_piece_id_to_join_point,
+        masking_boards,
+        full_board,
+        all_unique_pieces,
+        all_piece_sizes,
+        all_unique_masks,
+):
+    possible_uids = np.array(available_uids_per_player[current_player].nonzero()[0])
+    number_possible_uids = possible_uids.shape[0]
+
+    possible_points = np.swapaxes(np.array(open_board_locations[current_player].nonzero()), 0, 1)
+    number_possible_points = possible_points.shape[0]
+
+    if number_possible_points == 0:
+        return None, None
+
+    target_board_points = np.repeat(possible_points, number_possible_uids, axis=0).astype(np.int8)
+    target_uids = np.concatenate([possible_uids] * number_possible_points, axis=0)
+    target_rotation_ids = unique_id_to_rotation_id[target_uids]
+    target_join_points = unique_piece_id_to_join_point[target_uids]
+    is_valid_placement = np.ones(number_possible_uids * number_possible_points, dtype=bool)
+
+    check_if_piece_possible(
+        masking_boards[current_player],
+        full_board,
+        all_unique_pieces,
+        all_piece_sizes,
+        all_unique_masks,
+        target_board_points,
+        target_join_points,
+        target_rotation_ids,
+        is_valid_placement
+    )
+    valid_results = is_valid_placement.nonzero()[0]
+    if len(valid_results) < 1:
+        return None, None
+    return target_board_points[valid_results], target_uids[valid_results]
+
+
 class BlokusBoard:
     def __init__(self, boardSize=20):
         self._player_turn = 0
@@ -122,48 +167,69 @@ class BlokusBoard:
         self.all_mask_sizes = np.zeros((total_number_shapes + 1, 2), dtype=np.int8)
         self.all_join_points = np.zeros((total_number_shapes + 1, max_length_of_join_points, 2), dtype=np.int8)
         self.all_join_points_length = np.zeros(total_number_shapes + 1, dtype=np.int8)
-        self.piece_id_to_unique_piece_index = {}
-        index = 1
-        u_index = 0
-        all_pieces = []
+
+        self.unique_id_to_piece_id = np.zeros((total_number_shapes * max_length_of_join_points), dtype=int)
+        self.unique_id_to_rotation_id = np.zeros((total_number_shapes * max_length_of_join_points), dtype=int)
+        self.unique_piece_id_to_join_point = np.zeros((total_number_shapes * max_length_of_join_points, 2), dtype=int)
+        self.piece_id_to_uid_start_stop = np.zeros((len(all_unique_pieces), 2), dtype=int)
+
+        rotation_id_index = 1  # 1-100ish one for each rotation
+        piece_id_index = 0  # 0-21
+        unique_id_index = 0  # 0-800ish every combination of piece, rotation, and point
         for piece in all_unique_pieces:
-            all_rotations = []
+
+            self.piece_id_to_uid_start_stop[piece_id_index, 0] = unique_id_index
+
             for rotation in piece:
                 piece_shape = rotation.shape.shape
                 mask_shape = rotation.collision_mask.shape
-                join_points_shape = rotation.possible_points.shape[0]
-                self.all_unique_pieces[index, :piece_shape[0], :piece_shape[1]] = rotation.shape
-                self.all_unique_masks[index, :mask_shape[0], :mask_shape[1]] = rotation.collision_mask
-                self.all_piece_sizes[index] = rotation.bounding_box_size
-                # fix this later
-                self.all_mask_sizes[index] = rotation.bounding_box_size + 2
-                self.all_join_points[index, :join_points_shape, :] = rotation.possible_points
-                self.all_join_points_length[index] = join_points_shape
-                all_rotations.append(index)
-                self.piece_id_to_unique_piece_index[index] = u_index
-                index += 1
-            all_pieces.append(all_rotations)
 
-            u_index += 1
+                number_of_join_points = rotation.possible_points.shape[0]
 
-        self.available_pieces_per_player = [all_pieces]
-        self.available_pieces_per_player.extend([copy.deepcopy(self.available_pieces_per_player[0]) for _ in range(3)])
-        # maybe this should be a list, we need to iterate and REMOVE items from the list after we place an item at that location
-        self.open_board_points = [
-            np.array(((0, 0),)),
-            np.array(((20, 0),)),
-            np.array(((20, 20),)),
-            np.array(((0, 20),)),
-        ]
+                self.all_unique_pieces[rotation_id_index, :piece_shape[0], :piece_shape[1]] = rotation.shape
+                self.all_unique_masks[rotation_id_index, :mask_shape[0], :mask_shape[1]] = rotation.collision_mask
+                self.all_piece_sizes[rotation_id_index] = rotation.bounding_box_size
+                self.all_mask_sizes[rotation_id_index] = rotation.bounding_box_size + 2
+
+                start_unique_id = unique_id_index
+                stop_unique_id = unique_id_index + number_of_join_points
+
+                self.all_join_points[rotation_id_index, :number_of_join_points, :] = rotation.possible_points
+                self.all_join_points_length[rotation_id_index] = number_of_join_points
+
+                self.unique_piece_id_to_join_point[start_unique_id:stop_unique_id] = rotation.possible_points
+                self.unique_id_to_piece_id[start_unique_id:stop_unique_id] = piece_id_index
+                self.unique_id_to_rotation_id[start_unique_id:stop_unique_id] = rotation_id_index
+
+                rotation_id_index += 1
+                unique_id_index = stop_unique_id
+
+            self.piece_id_to_uid_start_stop[piece_id_index, 1] = unique_id_index
+            piece_id_index += 1
+
+        self.total_number_of_uids = unique_id_index
+        self.unique_id_to_piece_id = self.unique_id_to_piece_id[:self.total_number_of_uids]
+        self.unique_id_to_rotation_id = self.unique_id_to_rotation_id[:self.total_number_of_uids]
+        self.unique_piece_id_to_join_point = self.unique_piece_id_to_join_point[:self.total_number_of_uids]
+
+        self.available_uids_per_player = np.ones((4, self.total_number_of_uids), dtype=bool)
+
+        self.open_board_locations = np.zeros((4, boardSize + 1, boardSize + 1), dtype=bool)
+        self.open_board_locations[0, 0, 0] = True
+        self.open_board_locations[1, 20, 0] = True
+        self.open_board_locations[2, 20, 20] = True
+        self.open_board_locations[3, 0, 20] = True
         # how it should work when placing a block, remove point where we place the block. add all the other points of that block to this list(after adding the 'origin' of the block to all the vectors),
         self.max_length_of_join_points = max_length_of_join_points
 
     def player_turn(self):
         return self._player_turn
 
-    def check_if_move_valid(self, board_point: np.array, piece_id: 0, piece_point: np.array):
-        piece_id = np.array((piece_id,), dtype=np.int8)
+    def check_if_move_valid(self, board_point: np.array, unique_id: 0):
+        unique_id = np.array((unique_id,), dtype=np.int8)
         # piece_point = self.all_join_points[piece_id, piece_point_id]
+        unique_id_point = self.unique_piece_id_to_join_point[unique_id]
+        rotation_id = self.unique_id_to_rotation_id[unique_id]
         is_valid_placement = np.ones((1, 1), dtype=bool)
         check_if_piece_possible(
             self.maskingBoards[self._player_turn],
@@ -172,106 +238,84 @@ class BlokusBoard:
             self.all_piece_sizes,
             self.all_unique_masks,
             np.atleast_2d(board_point),
-            np.atleast_2d(piece_point),
-            piece_id,
+            np.atleast_2d(unique_id_point),
+            rotation_id,
             is_valid_placement
         )
         return is_valid_placement[0, 0]
 
-    # @timeit
+    @timeit
     def current_player_get_all_valid_moves(self):
         current_player = self._player_turn
 
-        number_of_pieces_available = sum(len(v) for v in self.available_pieces_per_player[current_player])
-        possible_points = self.open_board_points[current_player]
-        number_possible_points = possible_points.shape[0]
-        if number_possible_points == 0:
-            return None, None, None
-        number_of_possible_positions_per_point = number_of_pieces_available * self.max_length_of_join_points
-        target_piece_ids = np.zeros(number_of_possible_positions_per_point, dtype=np.int8)
-        target_join_points = np.zeros((number_of_possible_positions_per_point, 2), dtype=np.int8)
-        index = 0
-        for piece in self.available_pieces_per_player[self._player_turn]:
-            for rotation in piece:
-                num_of_join_points = self.all_join_points_length[rotation]
-                start_target_location = index
-                end_target_location = index + num_of_join_points
-                target_piece_ids[start_target_location:end_target_location] = rotation
-                target_join_points[start_target_location:end_target_location, :] = self.all_join_points[rotation][
-                                                                                   0:num_of_join_points]
-                index += num_of_join_points
-        max_target_join_points = index
-        target_piece_ids = target_piece_ids[:max_target_join_points]
-        target_join_points = target_join_points[:max_target_join_points, :]
-        target_board_points = np.repeat(possible_points, max_target_join_points, axis=0).astype(np.int8)
-        all_target_piece_ids = np.concatenate([target_piece_ids] * number_possible_points, axis=0)
-        target_piece_points = np.concatenate([[target_join_points]] * number_possible_points, axis=0).reshape(
-            (number_possible_points * max_target_join_points, 2))
-        is_valid_placement = np.ones(max_target_join_points * number_possible_points, dtype=bool)
-        check_if_piece_possible(
-            self.maskingBoards[self._player_turn],
+        return get_all_valid_moves(
+            current_player,
+            self.available_uids_per_player,
+            self.open_board_locations,
+            self.unique_id_to_rotation_id,
+            self.unique_piece_id_to_join_point,
+            self.maskingBoards,
             self.full_board,
             self.all_unique_pieces,
             self.all_piece_sizes,
-            self.all_unique_masks,
-            target_board_points,
-            target_piece_points,
-            all_target_piece_ids,
-            is_valid_placement
+            self.all_unique_masks
         )
-        valid_results = is_valid_placement.nonzero()[0]
-        if len(valid_results) < 1:
-            return None, None, None
-        return target_board_points[valid_results], all_target_piece_ids[valid_results], target_piece_points[
-            valid_results]
 
-    # need define input and output
-    def current_player_submit_move(self, board_point: np.array, piece_id: int, piece_point_location: np.array):
-        current_player = self._player_turn
-
-        piece_shape = self.all_piece_sizes[piece_id]
-        piece_origin = board_point - piece_point_location
-        piece_bb_end = piece_origin + piece_shape
-        if not self.check_if_move_valid(board_point, piece_id, piece_point_location):
-            print("Submitted move found to be invalid????")
-            return False
-        current_open_points = self.open_board_points[current_player]
-        current_num_of_positions = self.open_board_points[current_player].shape[
-                                       0] - 1  # minus the one we are gonna take away
-        this_piece_add_num_positions = self.all_join_points_length[piece_id] - 1
-        max_new_points = np.zeros((current_num_of_positions + this_piece_add_num_positions, 2), dtype=np.uint8)
-        new_piece_join_points = self.all_join_points[piece_id][0:self.all_join_points_length[piece_id]]
-        update_success, new_piece_join_points = update_open_points(max_new_points, current_open_points, board_point,
-                                                                   piece_origin,
-                                                                   self.playerBoards[current_player],
-                                                                   new_piece_join_points, piece_point_location)
-        if not update_success:
-            print("Could not find board point as valid??????")
-            return False
-        self.open_board_points[current_player] = new_piece_join_points
-        self.playerBoards[self._player_turn, piece_origin[0]:piece_bb_end[0], piece_origin[1]:piece_bb_end[1]] |= \
-            self.all_unique_pieces[piece_id][0:piece_shape[0], 0:piece_shape[1]]
-        self.full_board[self.playerBoards[self._player_turn]] = self._player_turn + 1
-
-        u_index = self.piece_id_to_unique_piece_index[piece_id]
-        self.available_pieces_per_player[self._player_turn][u_index] = []
-        self._player_turn = (self._player_turn + 1) % 4
-        return True
+    # def current_player_submit_move(self, board_point: np.array, unique_id: int):
+    #     current_player = self._player_turn
+    #     rotation_id = self.unique_id_to_rotation_id[unique_id]
+    #     piece_point_location = self.unique_piece_id_to_join_point[unique_id]
+    #     piece_shape = self.all_piece_sizes[rotation_id]
+    #     piece_origin = board_point - piece_point_location
+    #     piece_bb_end = piece_origin + piece_shape
+    #     if not self.check_if_move_valid(board_point, unique_id):
+    #         print("Submitted move found to be invalid????")
+    #         return False
+    #
+    #
+    #     #fix onwards
+    #
+    #
+    #     current_open_points = self.open_board_points[current_player]
+    #     current_num_of_positions = self.open_board_points[current_player].shape[
+    #                                    0] - 1  # minus the one we are gonna take away
+    #     this_piece_add_num_positions = self.all_join_points_length[rotation_id] - 1
+    #     max_new_points = np.zeros((current_num_of_positions + this_piece_add_num_positions, 2), dtype=np.uint8)
+    #     new_piece_join_points = self.all_join_points[rotation_id][0:self.all_join_points_length[rotation_id]]
+    #     update_success, new_piece_join_points = update_open_points(max_new_points, current_open_points, board_point,
+    #                                                                piece_origin,
+    #                                                                self.playerBoards[current_player],
+    #                                                                new_piece_join_points, piece_point_location)
+    #     if not update_success:
+    #         print("Could not find board point as valid??????")
+    #         return False
+    #     self.open_board_points[current_player] = new_piece_join_points
+    #     self.playerBoards[self._player_turn, piece_origin[0]:piece_bb_end[0], piece_origin[1]:piece_bb_end[1]] |= \
+    #         self.all_unique_pieces[rotation_id][0:piece_shape[0], 0:piece_shape[1]]
+    #     self.full_board[self.playerBoards[self._player_turn]] = self._player_turn + 1
+    #
+    #     u_index = self.piece_id_to_unique_piece_index[rotation_id]
+    #     self.available_pieces_per_player[self._player_turn][u_index] = []
+    #     self._player_turn = (self._player_turn + 1) % 4
+    #     return True
 
     def current_player_skip_turn(self):
         self._player_turn = (self._player_turn + 1) % 4
 
-# def check():
-#     board = BlokusBoard()
-#     for i in range(10):
-#         results = board.current_player_get_all_valid_moves()
-#         if results[0] is None:
-#             board.current_player_skip_turn()
-#             continue
-#         rand = random.randint(0, results[1].shape[0] - 1)
-#         board.current_player_submit_move(results[0][rand], results[1][rand], results[2][rand])
-#         # visualizer.plot_store_board(board, f"board_{i}")
-#
-#
-# if __name__ == '__main__':
-#     check()
+
+def check():
+    board = BlokusBoard()
+    for i in range(10):
+        results = board.current_player_get_all_valid_moves()
+        print(results)
+        if results[0] is None:
+            board.current_player_skip_turn()
+            continue
+        rand = random.randint(0, results[1].shape[0] - 1)
+        print(board.check_if_move_valid(results[0][rand], results[1][rand]))
+        # board.current_player_submit_move(results[0][rand], results[1][rand], results[2][rand])
+        # visualizer.plot_store_board(board, f"board_{i}")
+
+
+if __name__ == '__main__':
+    check()
