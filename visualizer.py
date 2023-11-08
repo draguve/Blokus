@@ -9,7 +9,6 @@ from matplotlib.patches import Rectangle
 from pieces import *
 import blokus
 
-
 colors = ["blue", "orange", "red", "green", "purple"]
 dot_colors = ["#0000b2", "#b27300", "#b20000", "#003300"]
 
@@ -174,7 +173,9 @@ def plot_remaining_pieces(board, filename):
 
     to_plot = 0
     for i in range(4):
-        to_plot += np.unique(board.unique_id_to_piece_id[blokus.get_available_uids(board.available_uids_per_player[i])]).shape[0]
+        to_plot += \
+            board.available_uids_per_player[i][np.unique(board.unique_id_to_piece_id, return_index=True)[1]].nonzero()[
+                0].shape[0]
 
     number_of_figures_per_side = math.ceil(math.sqrt(to_plot))
     stride = 6
@@ -183,9 +184,11 @@ def plot_remaining_pieces(board, filename):
     plt.ylim([-1, limit])
     index = 0
     for i in range(4):
-        to_plot = np.unique(board.unique_id_to_piece_id[blokus.get_available_uids(board.available_uids_per_player[i])])
+        to_plot = board.available_uids_per_player[i][np.unique(board.unique_id_to_piece_id,return_index=True)[1]].nonzero()[0]
+        to_plot = board.piece_id_to_rotation_id[to_plot]
+
         for piece_id in range(to_plot.shape[0]):
-            piece = board.all_unique_pieces[piece_id]
+            piece = board.all_unique_pieces[to_plot[piece_id]]
             x = (index % number_of_figures_per_side) * stride
             y = math.floor(index / number_of_figures_per_side) * stride
             plot_box(ax, piece, (x, y), colors[i])

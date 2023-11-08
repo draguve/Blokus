@@ -50,7 +50,7 @@ def get_open_points_from_board(player_open_positions):
     return player_open_points
 
 
-@njit
+@njit  # TODO: maybe check if surrounded by the full board to cull cases where surrounded by enemy pieces
 def update_open_positions(
         player_open_positions,
         new_piece_board_point,
@@ -92,7 +92,7 @@ def update_open_positions(
 
     for i in range(number_possible_points):
         if is_point_surrounded(current_player_board, possible_points[i]):
-            player_open_positions[possible_points[i]] = False
+            player_open_positions[possible_points[i][0], possible_points[i][1]] = False
 
 
 @njit
@@ -212,6 +212,7 @@ class BlokusBoard:
         self.unique_id_to_rotation_id = np.zeros((total_number_shapes * max_length_of_join_points), dtype=int)
         self.unique_piece_id_to_join_point = np.zeros((total_number_shapes * max_length_of_join_points, 2), dtype=int)
         self.piece_id_to_uid_start_stop = np.zeros((len(all_unique_pieces), 2), dtype=int)
+        self.piece_id_to_rotation_id = np.zeros(len(all_unique_pieces), dtype=int)
 
         rotation_id_index = 1  # 1-100ish one for each rotation
         piece_id_index = 0  # 0-21
@@ -240,6 +241,7 @@ class BlokusBoard:
                 self.unique_piece_id_to_join_point[start_unique_id:stop_unique_id] = rotation.possible_points
                 self.unique_id_to_piece_id[start_unique_id:stop_unique_id] = piece_id_index
                 self.unique_id_to_rotation_id[start_unique_id:stop_unique_id] = rotation_id_index
+                self.piece_id_to_rotation_id[piece_id_index] = rotation_id_index
 
                 rotation_id_index += 1
                 unique_id_index = stop_unique_id
