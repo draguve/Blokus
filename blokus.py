@@ -265,7 +265,7 @@ class BlokusBoard:
     def player_turn(self):
         return self._player_turn
 
-    @timeit
+    # @timeit
     def check_if_move_valid(self, board_point: np.array, unique_id: 0):
         unique_id = np.array((unique_id,), dtype=np.int64)
         # piece_point = self.all_join_points[piece_id, piece_point_id]
@@ -285,7 +285,7 @@ class BlokusBoard:
         )
         return is_valid_placement[0, 0]
 
-    @timeit
+    # @timeit
     def current_player_get_all_valid_moves(self):
         current_player = self._player_turn
 
@@ -302,7 +302,7 @@ class BlokusBoard:
             self.all_unique_masks
         )
 
-    @timeit
+    # @timeit
     def current_player_submit_move(self, board_point: np.array, unique_id: int):
         current_player = self._player_turn
 

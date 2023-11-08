@@ -15,12 +15,13 @@ class CharlieInConfusion(Player):
         self.piece_sizes = piece_sizes
         self.center = np.array((board.board_size, board.board_size)) / 2
 
-    def choose_move(self, board, board_point, piece_id, piece_point) -> int:
-        these_option_sizes = self.piece_sizes[piece_id]
+    def choose_move(self, board, board_point, uid) -> int:
+        piece_point = board.unique_piece_id_to_join_point[uid]
+        these_option_sizes = self.piece_sizes[uid]
         idxs = np.flatnonzero(these_option_sizes[:] == np.max(these_option_sizes))
 
         distance_start = np.linalg.norm(self.center - board_point, axis=1)
-        shape_all_pieces = board.all_piece_sizes[piece_id]
+        shape_all_pieces = board.all_piece_sizes[uid]
         distance_end = np.linalg.norm(self.center - board_point - piece_point + shape_all_pieces, axis=1)
         average_side = (distance_start+distance_end)/2
         best_ones = np.flatnonzero(average_side[idxs] == np.min(average_side[idxs]))

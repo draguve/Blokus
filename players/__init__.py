@@ -5,7 +5,7 @@ class Player:
         pass
 
     # TODO: can remove passing the board everytime
-    def choose_move(self, board, board_point, piece_id, piece_point_id) -> int:
+    def choose_move(self, board, board_point,uid) -> int:
         raise NotImplementedError
 
     def get_player_id(self):

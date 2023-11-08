@@ -9,9 +9,10 @@ class AliceInWonderlandPlayer(Player):
         super().__init__(board)
         self.center = np.array((board.board_size, board.board_size)) / 2
 
-    def choose_move(self, board: blokus.BlokusBoard, board_point, piece_id, piece_point) -> int:
+    def choose_move(self, board: blokus.BlokusBoard, board_point, uid) -> int:
+        piece_point = board.unique_piece_id_to_join_point[uid]
         distance_start = np.linalg.norm(self.center - board_point, axis=1)
-        shape_all_pieces = board.all_piece_sizes[piece_id]
+        shape_all_pieces = board.all_piece_sizes[uid]
         distance_end = np.linalg.norm(self.center - board_point - piece_point + shape_all_pieces, axis=1)
         shorter_side = np.minimum(distance_start, distance_end)
         idxs = np.flatnonzero(shorter_side == np.min(shorter_side))

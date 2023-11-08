@@ -14,8 +14,8 @@ class BiggestFirstPlayer(Player):
             piece_sizes[i] = np.sum(board.all_unique_pieces[i])
         self.piece_sizes = piece_sizes
 
-    def choose_move(self, board, board_point, piece_id, piece_point_id) -> int:
-        these_option_sizes = self.piece_sizes[piece_id]
+    def choose_move(self, board, board_point, uid) -> int:
+        these_option_sizes = self.piece_sizes[uid]
         idxs = np.flatnonzero(these_option_sizes[:] == np.max(these_option_sizes))
         random_index = random.randint(0, idxs.shape[0] - 1)
         return idxs[random_index]

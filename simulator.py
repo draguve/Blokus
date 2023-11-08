@@ -10,7 +10,7 @@ import numpy as np
 
 from visualizer import plot_store_board, plot_remaining_pieces
 
-VISUALIZE_EVERY_STEP = False
+VISUALIZE_EVERY_STEP = True
 visualizer_location = "match_replays/"
 
 
@@ -49,8 +49,7 @@ class BlokusSim:
 
             chosen_move = current_player.choose_move(self.board, *possible_moves)
             result = self.board.current_player_submit_move(possible_moves[0][chosen_move],
-                                                           possible_moves[1][chosen_move],
-                                                           possible_moves[2][chosen_move])
+                                                           possible_moves[1][chosen_move])
             self.player_steps[current_player_id] += 1
             if not result:
                 self.board.current_player_skip_turn()
@@ -88,7 +87,7 @@ class BlokusSim:
 
 def check():
     board = BlokusBoard()
-    players = [CharlieInConfusion(board), AvoidCenterPlayer(board)]
+    players = [RandomPlayer(board), RandomPlayer(board)]
     sim = BlokusSim(board, players)
     sim.run_steps(21 * 4)
     print(f"Matches {sim.get_current_score()}")

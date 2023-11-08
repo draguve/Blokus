@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 
 from pieces import *
+import blokus
 
 
 colors = ["blue", "orange", "red", "green", "purple"]
@@ -173,10 +174,7 @@ def plot_remaining_pieces(board, filename):
 
     to_plot = 0
     for i in range(4):
-        for upiece in board.available_pieces_per_player[i]:
-            if len(upiece) == 0:
-                continue
-            to_plot += 1
+        to_plot += np.unique(board.unique_id_to_piece_id[blokus.get_available_uids(board.available_uids_per_player[i])]).shape[0]
 
     number_of_figures_per_side = math.ceil(math.sqrt(to_plot))
     stride = 6
@@ -185,15 +183,14 @@ def plot_remaining_pieces(board, filename):
     plt.ylim([-1, limit])
     index = 0
     for i in range(4):
-        for upiece in board.available_pieces_per_player[i]:
-            if len(upiece) == 0:
-                continue
-            piece_id = upiece[0]
+        to_plot = np.unique(board.unique_id_to_piece_id[blokus.get_available_uids(board.available_uids_per_player[i])])
+        for piece_id in range(to_plot.shape[0]):
             piece = board.all_unique_pieces[piece_id]
             x = (index % number_of_figures_per_side) * stride
             y = math.floor(index / number_of_figures_per_side) * stride
             plot_box(ax, piece, (x, y), colors[i])
             index += 1
+
     plt.savefig(f"{filename}.png", format="png")
     plt.close()
 
