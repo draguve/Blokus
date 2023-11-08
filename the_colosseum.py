@@ -1,3 +1,5 @@
+from matplotlib import pyplot as plt
+from matplotlib import colors as mcolors
 from tinydb import TinyDB
 from pathos.multiprocessing import ProcessPool
 import util
@@ -24,8 +26,10 @@ from players.DianaInJungle import DianaInJunglePlayer
 from players.EggHeadInFridge import EggHeadInFridgePlayer
 from players.FredrickIsPompus import FredrickIsPompusPlayer
 
-
-NUMBER_OF_MATCHES = 100
+PLOT_GLICKO_OVER_TIME = True
+NUMBER_OF_MATCHES = 1000
+NUMBER_OF_PARALLEL_PROCESSES = 16
+BATCH_COMMIT = 1000
 
 
 def get_players():
@@ -84,6 +88,7 @@ def main():
     players_ids = []
     players_id_to_class = {}
     player_id_to_rating = {}
+    player_id_to_history = {}
 
     glicko = Glicko2()
 
@@ -93,6 +98,7 @@ def main():
         players_ids.append(player_id)
         players_id_to_class[player_id] = player
         player_id_to_rating[player_id] = glicko.create_rating()
+        player_id_to_history[player_id] = []
 
     match_counts = {}  # Set(players) -> number_of_matches_played
     for combo in itertools.combinations(players_ids, 2):
@@ -115,11 +121,20 @@ def main():
     if len(player1_required) > 0:
         player1_required, player2_required = util.shuffle_together(player1_required, player2_required)
 
-        processPool = ProcessPool(nodes=8)
+        processPool = ProcessPool(nodes=NUMBER_OF_PARALLEL_PROCESSES)
         results = processPool.imap(play_match, player1_required, player2_required)
 
+        batch = []
+        idx = 0
+
         for match in tqdm(results, desc="Playing matches", total=len(player1_required)):
-            db.insert(match)
+            if idx > BATCH_COMMIT:
+                db.insert_multiple(batch)
+                batch = []
+                idx = 0
+            batch.append(match)
+        if len(batch) > 0:
+            db.insert_multiple(batch)
 
     all_matches = db.all()
     random.shuffle(all_matches)
@@ -136,9 +151,25 @@ def main():
             match["player1_score"],
             match["player2_score"],
         )
+        if PLOT_GLICKO_OVER_TIME:
+            player_id_to_history[p1_id].append(player_id_to_rating[p1_id].mu)
+            player_id_to_history[p2_id].append(player_id_to_rating[p2_id].mu)
 
+    players_ids = sorted(players_ids, key=lambda pid: player_id_to_rating[pid].mu)
+
+    if PLOT_GLICKO_OVER_TIME:
+        fig, ax = plt.subplots()
+        cm = plt.get_cmap('gist_rainbow')
+        num_players = len(players_ids)
+        ax.set_prop_cycle(color=[cm(1. * i / num_players) for i in range(num_players)])
     for player_id in players_ids:
         print(f"{players_id_to_class[player_id].__name__} -> {player_id_to_rating[player_id].mu}")
+        if PLOT_GLICKO_OVER_TIME:
+            plt.plot(list(range(len(player_id_to_history[player_id]))), player_id_to_history[player_id],
+                     label=str(players_id_to_class[player_id].__name__))
+    if PLOT_GLICKO_OVER_TIME:
+        plt.legend(loc='lower left', fontsize="7")
+        plt.show()
 
 
 if __name__ == '__main__':

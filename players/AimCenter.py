@@ -12,7 +12,7 @@ class AimCenterPlayer(Player):
     def choose_move(self, board: blokus.BlokusBoard, board_point, uid) -> int:
         piece_point = board.unique_piece_id_to_join_point[uid]
         distance_start = np.linalg.norm(self.center - board_point, axis=1)
-        shape_all_pieces = board.all_piece_sizes[uid]
+        shape_all_pieces = board.all_piece_sizes[board.unique_id_to_rotation_id[uid]]
         distance_end = np.linalg.norm(self.center - board_point - piece_point + shape_all_pieces, axis=1)
         longer_side = np.maximum(distance_start, distance_end)
         idxs = np.flatnonzero(longer_side == np.min(longer_side))

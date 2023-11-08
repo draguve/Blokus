@@ -10,12 +10,12 @@ import numpy as np
 
 from visualizer import plot_store_board, plot_remaining_pieces
 
-VISUALIZE_EVERY_STEP = True
+VISUALIZE_EVERY_STEP = False
 visualizer_location = "match_replays/"
 
 
 class BlokusSim:
-    def __init__(self, board, players):
+    def __init__(self, board, players, viz_board=VISUALIZE_EVERY_STEP):
         if len(players) < 2:
             raise NotImplementedError
         if len(players) == 3:
@@ -26,6 +26,7 @@ class BlokusSim:
         self.step = 0
         self.no_more_moves = np.zeros(4, dtype=bool)
         self.player_steps = np.zeros(len(players), dtype=int)
+        self.viz_board = viz_board
 
     def run_steps(self, num_steps):
         for i in range(num_steps):
@@ -66,12 +67,12 @@ class BlokusSim:
         return remaining_pieces
 
     def visualize_board(self, extra=""):
-        if VISUALIZE_EVERY_STEP:
+        if self.viz_board:
             check_for_dir(f"{visualizer_location}/{self.game_id}/")
             plot_store_board(self.board, f"{visualizer_location}/{self.game_id}/match_{self.step}{extra}")
 
     def visualize_remaining(self):
-        if VISUALIZE_EVERY_STEP:
+        if self.viz_board:
             check_for_dir(f"{visualizer_location}/{self.game_id}/")
             plot_remaining_pieces(self.board, f"{visualizer_location}/{self.game_id}/remaining_{self.step}")
 

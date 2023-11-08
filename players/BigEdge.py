@@ -17,11 +17,11 @@ class BigEdgePlayer(Player):
 
     def choose_move(self, board, board_point, uid) -> int:
         piece_point = board.unique_piece_id_to_join_point[uid]
-        these_option_sizes = self.piece_sizes[uid]
+        these_option_sizes = self.piece_sizes[board.unique_id_to_rotation_id[uid]]
         idxs = np.flatnonzero(these_option_sizes[:] == np.max(these_option_sizes))
 
         distance_start = np.linalg.norm(self.center - board_point, axis=1)
-        shape_all_pieces = board.all_piece_sizes[uid]
+        shape_all_pieces = board.all_piece_sizes[board.unique_id_to_rotation_id[uid]]
         distance_end = np.linalg.norm(self.center - board_point - piece_point + shape_all_pieces, axis=1)
         longer_side = np.minimum(distance_start, distance_end)
         best_ones = np.flatnonzero(longer_side[idxs] == np.min(longer_side[idxs]))
