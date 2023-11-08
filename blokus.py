@@ -1,6 +1,6 @@
 import copy
 import random
-from numba import typed
+from numba import typed, njit
 
 import numba
 import numpy as np
@@ -16,47 +16,86 @@ MAX_BOUNDING_BOX_FOR_MASK = 7
 THREADS_PER_BLOCK = 1
 
 
-@jit(nopython=True, parallel=True)
+@njit
 def is_point_surrounded(player_board, point):
     return np.sum(player_board[point[0] - 1:point[0] + 1, point[1] - 1:point[1] + 1]) > 1
 
 
-# one issue is the surrounded technique does not work in the case when a vertex gets surrounded after placing the new tile and only get removed after the next iteration
-@jit(nopython=True, parallel=True)
-def update_open_points(new_open_points, current_open_vertexes, board_point, piece_origin, current_board,
-                       new_piece_join_vertexes, piece_vertex):
-    index_new_vertexes = 0
-    found = False
-    number_possible_vertexes = current_open_vertexes.shape[0]
-    board_shape = current_board.shape
-    for i in range(number_possible_vertexes):
-        if np.all(current_open_vertexes[i] == board_point):
-            found = True
-        else:
-            if is_point_surrounded(current_board, current_open_vertexes[i]):
-                continue
-            new_open_points[index_new_vertexes] = current_open_vertexes[i]
-            index_new_vertexes += 1
-    if not found:
-        return False, None
-    number_new_piece_join_vertexes = new_piece_join_vertexes.shape[0]
-    possible_join_vertexes = new_piece_join_vertexes + piece_origin
-    piece_vertex_where_added = piece_vertex + piece_origin
+@njit
+def get_available_uids(all_pieces):
+    number_points = 0
+    for i, value in np.ndenumerate(all_pieces):
+        number_points += value
+    index = 0
+    player_available_uids = np.zeros(number_points, dtype=np.int32)
+    for (i,), value in np.ndenumerate(all_pieces):
+        if value:
+            player_available_uids[index] = i
+            index += 1
+    return player_available_uids
+
+
+@njit
+def get_open_points_from_board(player_open_positions):
+    number_points = 0
+    for (i, j), i_ij in np.ndenumerate(player_open_positions):
+        number_points += i_ij
+    index = 0
+    player_open_points = np.zeros((number_points, 2), dtype=np.int8)
+    for (i, j), i_ij in np.ndenumerate(player_open_positions):
+        if i_ij:
+            player_open_points[index][0] = i
+            player_open_points[index][1] = j
+            index += 1
+    return player_open_points
+
+
+@njit
+def update_open_positions(
+        player_open_positions,
+        new_piece_board_point,
+        new_piece_uid,
+
+        unique_id_to_rotation_id,
+        all_piece_sizes,
+        unique_piece_id_to_join_point,
+        all_join_points,
+        all_join_points_lengths,
+        current_player_board
+):
+    board_shape = current_player_board.shape
+
+    rotation_id = unique_id_to_rotation_id[new_piece_uid]
+    piece_shape = all_piece_sizes[rotation_id]
+    piece_point_location = unique_piece_id_to_join_point[new_piece_uid]
+
+    piece_origin = new_piece_board_point - piece_point_location
+    piece_bb_end = piece_origin + piece_shape
+    new_piece_join_points = all_join_points[rotation_id][0:all_join_points_lengths[rotation_id]]
+
+    number_new_piece_join_vertexes = new_piece_join_points.shape[0]
+    possible_join_vertexes = new_piece_join_points + piece_origin
+    piece_vertex_where_added = piece_point_location + piece_origin
+
     for i in range(number_new_piece_join_vertexes):
-        if np.all(possible_join_vertexes[i] == piece_vertex_where_added):
-            continue
         if possible_join_vertexes[i, 0] == 0 or possible_join_vertexes[i, 1] == 0:
             continue
         if possible_join_vertexes[i, 0] == board_shape[0] or possible_join_vertexes[i, 1] == board_shape[1]:
             continue
-        if is_point_surrounded(current_board, possible_join_vertexes[i]):
-            continue
-        new_open_points[index_new_vertexes] = possible_join_vertexes[i]
-        index_new_vertexes += 1
-    return True, new_open_points[:index_new_vertexes]
+        player_open_positions[possible_join_vertexes[i][0], possible_join_vertexes[i][1]] = True
+
+    player_open_positions[piece_vertex_where_added[0], piece_vertex_where_added[1]] = False
+    player_open_positions[new_piece_board_point[0], new_piece_board_point[1]] = False
+
+    possible_points = get_open_points_from_board(player_open_positions)
+    number_possible_points = possible_points.shape[0]
+
+    for i in range(number_possible_points):
+        if is_point_surrounded(current_player_board, possible_points[i]):
+            player_open_positions[possible_points[i]] = False
 
 
-@jit(nopython=True)
+@njit
 def check_if_piece_possible(
         masking_board,
         full_board,
@@ -103,7 +142,7 @@ def check_if_piece_possible(
         is_valid_placement[pos] = output
 
 
-# @jit(nopython=True)
+@jit(forceobj=True)  # maybe fix this later has an issue with the repeat and the list multiplication
 def get_all_valid_moves(
         current_player,
         available_uids_per_player,
@@ -116,10 +155,11 @@ def get_all_valid_moves(
         all_piece_sizes,
         all_unique_masks,
 ):
-    possible_uids = np.array(available_uids_per_player[current_player].nonzero()[0])
+    # possible_uids = np.array(available_uids_per_player[current_player].nonzero()[0])
+    possible_uids = get_available_uids(available_uids_per_player[current_player])
     number_possible_uids = possible_uids.shape[0]
 
-    possible_points = np.swapaxes(np.array(open_board_locations[current_player].nonzero()), 0, 1)
+    possible_points = get_open_points_from_board(open_board_locations[current_player])
     number_possible_points = possible_points.shape[0]
 
     if number_possible_points == 0:
@@ -225,8 +265,9 @@ class BlokusBoard:
     def player_turn(self):
         return self._player_turn
 
+    @timeit
     def check_if_move_valid(self, board_point: np.array, unique_id: 0):
-        unique_id = np.array((unique_id,), dtype=np.int8)
+        unique_id = np.array((unique_id,), dtype=np.int64)
         # piece_point = self.all_join_points[piece_id, piece_point_id]
         unique_id_point = self.unique_piece_id_to_join_point[unique_id]
         rotation_id = self.unique_id_to_rotation_id[unique_id]
@@ -261,43 +302,48 @@ class BlokusBoard:
             self.all_unique_masks
         )
 
-    # def current_player_submit_move(self, board_point: np.array, unique_id: int):
-    #     current_player = self._player_turn
-    #     rotation_id = self.unique_id_to_rotation_id[unique_id]
-    #     piece_point_location = self.unique_piece_id_to_join_point[unique_id]
-    #     piece_shape = self.all_piece_sizes[rotation_id]
-    #     piece_origin = board_point - piece_point_location
-    #     piece_bb_end = piece_origin + piece_shape
-    #     if not self.check_if_move_valid(board_point, unique_id):
-    #         print("Submitted move found to be invalid????")
-    #         return False
-    #
-    #
-    #     #fix onwards
-    #
-    #
-    #     current_open_points = self.open_board_points[current_player]
-    #     current_num_of_positions = self.open_board_points[current_player].shape[
-    #                                    0] - 1  # minus the one we are gonna take away
-    #     this_piece_add_num_positions = self.all_join_points_length[rotation_id] - 1
-    #     max_new_points = np.zeros((current_num_of_positions + this_piece_add_num_positions, 2), dtype=np.uint8)
-    #     new_piece_join_points = self.all_join_points[rotation_id][0:self.all_join_points_length[rotation_id]]
-    #     update_success, new_piece_join_points = update_open_points(max_new_points, current_open_points, board_point,
-    #                                                                piece_origin,
-    #                                                                self.playerBoards[current_player],
-    #                                                                new_piece_join_points, piece_point_location)
-    #     if not update_success:
-    #         print("Could not find board point as valid??????")
-    #         return False
-    #     self.open_board_points[current_player] = new_piece_join_points
-    #     self.playerBoards[self._player_turn, piece_origin[0]:piece_bb_end[0], piece_origin[1]:piece_bb_end[1]] |= \
-    #         self.all_unique_pieces[rotation_id][0:piece_shape[0], 0:piece_shape[1]]
-    #     self.full_board[self.playerBoards[self._player_turn]] = self._player_turn + 1
-    #
-    #     u_index = self.piece_id_to_unique_piece_index[rotation_id]
-    #     self.available_pieces_per_player[self._player_turn][u_index] = []
-    #     self._player_turn = (self._player_turn + 1) % 4
-    #     return True
+    @timeit
+    def current_player_submit_move(self, board_point: np.array, unique_id: int):
+        current_player = self._player_turn
+
+        rotation_id = self.unique_id_to_rotation_id[unique_id]
+        piece_point_location = self.unique_piece_id_to_join_point[unique_id]
+
+        piece_shape = self.all_piece_sizes[rotation_id]
+        piece_origin = board_point - piece_point_location
+        piece_bb_end = piece_origin + piece_shape
+
+        if not self.check_if_move_valid(board_point, unique_id):
+            print("Submitted move found to be invalid????")
+            return False
+
+        if not self.open_board_locations[current_player][board_point[0], board_point[1]]:
+            print("Could not find board point as valid??????")
+            return False
+
+        self.playerBoards[self._player_turn, piece_origin[0]:piece_bb_end[0], piece_origin[1]:piece_bb_end[1]] |= \
+            self.all_unique_pieces[rotation_id][0:piece_shape[0], 0:piece_shape[1]]
+        self.full_board[self.playerBoards[self._player_turn]] = self._player_turn + 1
+
+        update_open_positions(
+            self.open_board_locations[current_player],
+            board_point,
+            unique_id,
+
+            self.unique_id_to_rotation_id,
+            self.all_piece_sizes,
+            self.unique_piece_id_to_join_point,
+            self.all_join_points,
+            self.all_join_points_length,
+            self.playerBoards[current_player]
+        )
+
+        piece_id = self.unique_id_to_piece_id[unique_id]
+        start_stop = self.piece_id_to_uid_start_stop[piece_id]
+
+        self.available_uids_per_player[current_player, start_stop[0]:start_stop[1]] = False
+        self._player_turn = (self._player_turn + 1) % 4
+        return True
 
     def current_player_skip_turn(self):
         self._player_turn = (self._player_turn + 1) % 4
@@ -307,13 +353,11 @@ def check():
     board = BlokusBoard()
     for i in range(10):
         results = board.current_player_get_all_valid_moves()
-        print(results)
         if results[0] is None:
             board.current_player_skip_turn()
             continue
         rand = random.randint(0, results[1].shape[0] - 1)
-        print(board.check_if_move_valid(results[0][rand], results[1][rand]))
-        # board.current_player_submit_move(results[0][rand], results[1][rand], results[2][rand])
+        board.current_player_submit_move(results[0][rand], results[1][rand])
         # visualizer.plot_store_board(board, f"board_{i}")
 
 

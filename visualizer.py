@@ -152,8 +152,9 @@ def plot_board(board):
     for i in range(4):
         plot_box(ax, board.playerBoards[i], (0, 0), colors[i])
     for i in range(4):
+        open_board_points = np.swapaxes(np.array(board.open_board_locations[i].nonzero()), 0, 1)
         s = 20 - 3 * i
-        plot_points(np.array(board.open_board_points[i]), (0, 0), dot_colors[i], s=s)
+        plot_points(open_board_points, (0, 0), dot_colors[i], s=s)
 
 
 def plot_show_board(board):
