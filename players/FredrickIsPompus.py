@@ -2,7 +2,7 @@ import random
 
 import numpy as np
 
-import blokus
+import board
 from players import Player
 
 

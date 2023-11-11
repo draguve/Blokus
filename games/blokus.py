@@ -1,8 +1,13 @@
 import datetime
 import pathlib
+import random
 
+import numpy as np
+
+import board as blokus_board
 from muzero.games.abstract_game import AbstractGame
 import torch
+import visualizer
 
 
 class MuZeroConfig:
@@ -13,10 +18,13 @@ class MuZeroConfig:
         self.seed = 0  # Seed for numpy, torch and the game
         self.max_num_gpus = None  # Fix the maximum number of GPUs to use. It's usually faster to use a single GPU (set it to 1) if it has enough memory. None will use every GPUs available
 
+        board = blokus_board.BlokusBoard()
+
         ### Game
-        self.observation_shape = (3, 6,
-                                  7)  # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
-        self.action_space = list(range(7))  # Fixed list of all possible actions. You should only edit the length
+        self.observation_shape = (5, 21,
+                                  21)  # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
+        self.action_space = list(
+            range(board.number_of_tokens()))  # Fixed list of all possible actions. You should only edit the length
         self.players = list(range(2))  # List of players. You should only edit the length
         self.stacked_observations = 0  # Number of previous observations and previous actions to add to the current observation
 
@@ -25,9 +33,9 @@ class MuZeroConfig:
         self.opponent = "random"  # Hard coded agent that MuZero faces to assess his progress in multiplayer games. It doesn't influence training. None, "random" or "expert" if implemented in the Game class
 
         ### Self-Play
-        self.num_workers = 1  # Number of simultaneous threads/workers self-playing to feed the replay buffer
+        self.num_workers = 4  # Number of simultaneous threads/workers self-playing to feed the replay buffer
         self.selfplay_on_gpu = False
-        self.max_moves = 84  # Maximum number of moves if game is not finished before
+        self.max_moves = 21 * 4 * 2  # Maximum number of moves if game is not finished before
         self.num_simulations = 200  # Number of future moves self-simulated
         self.discount = 1  # Chronological discount of the reward
         self.temperature_threshold = None  # Number of moves before dropping the temperature given by visit_softmax_temperature_fn to 0 (ie selecting the best action). If None, visit_softmax_temperature_fn is used every time
@@ -113,16 +121,81 @@ class MuZeroConfig:
 
 class BlokusGame(AbstractGame):
     def __init__(self, seed=None):
-        pass
+        self.selected_pos_action = None
+        self.selected_pos = None
+        self.board = blokus_board.BlokusBoard(20)
+        self.position_selected = False
+        self.no_more_moves = np.zeros(4, dtype=bool)
 
     def step(self, action):
-        pass
+        # return self.get_observation(), reward, done
+        if not self.position_selected:
+            x = action % 21
+            y = action // 21
+            self.position_selected = True
+            self.selected_pos_action = action
+            self.selected_pos = np.array([x, y])
+            return self.get_observation(), 0, False
+        else:
+            self.position_selected = False
+            uid = action - (21 * 21)
+            self.board.current_player_submit_move(self.selected_pos, uid)
+
+            # keep going until there are valid moves
+            while self.board.current_player_get_all_valid_moves()[0] is None:
+                self.no_more_moves[self.board.player_turn()] = True
+                self.board.current_player_skip_turn()
+
+            r_id = self.board.unique_id_to_rotation_id[uid]
+            score = np.sum(self.board.all_unique_pieces[r_id])
+
+            return self.get_observation(), score, self.is_finished()
 
     def legal_actions(self):
-        pass
+        if not self.position_selected:
+            valid_options = self.board.current_player_get_all_valid_moves()
+            available_positions = valid_options[0].astype(int)
+            valid_position_actions = available_positions[:, 0] + available_positions[:, 1] * 21
+            return np.unique(valid_position_actions)
+        else:
+            # this can be optimized
+            valid_options = self.board.current_player_get_all_valid_moves()
+            available_positions = valid_options[0].astype(int)
+            valid_position_actions = available_positions[:, 0] + available_positions[:, 1] * 21
+            valid_uid_options = valid_options[1][(valid_position_actions == self.selected_pos_action).nonzero()]
+            return 21 * 21 + valid_uid_options
 
     def reset(self):
-        pass
+        selection_step = 0
+        self.board.re_init()
+
+    def is_finished(self):
+        return np.all(self.no_more_moves)
 
     def render(self):
-        pass
+        visualizer.plot_board(self.board)
+
+    def get_observation(self):
+        obs = np.zeros((5, 21, 21), dtype=bool)
+        obs[0:4, 0:20, 0:20] = self.board.playerBoards
+        if self.position_selected:
+            obs[4, self.selected_pos[0], self.selected_pos[1]] = True
+        return obs
+
+    def to_play(self):
+        # need to check if there are any valid positions here
+        current_player_id = self.board.player_turn() % 2
+        return current_player_id
+
+
+def main():
+    bboard = BlokusGame()
+    for i in range(20):
+        check = bboard.legal_actions()
+        rand = random.randint(0, len(check) - 1)
+        obs, reward, finished = bboard.step(check[rand])
+        print(obs.shape, reward, finished)
+
+
+if __name__ == '__main__':
+    main()

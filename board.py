@@ -267,6 +267,19 @@ class BlokusBoard:
     def player_turn(self):
         return self._player_turn
 
+    def re_init(self):
+        self._player_turn = 0
+        self.maskingBoards[:] = False
+        self.full_board[:] = 0
+
+        self.available_uids_per_player[:] = True
+
+        self.open_board_locations[:] = False
+        self.open_board_locations[0, 0, 0] = True
+        self.open_board_locations[1, self.board_size, 0] = True
+        self.open_board_locations[2, self.board_size, self.board_size] = True
+        self.open_board_locations[3, 0, self.board_size] = True
+
     # @timeit
     def check_if_move_valid(self, board_point: np.array, unique_id: 0):
         unique_id = np.array((unique_id,), dtype=np.int64)
@@ -286,6 +299,9 @@ class BlokusBoard:
             is_valid_placement
         )
         return is_valid_placement[0, 0]
+
+    def number_of_tokens(self):
+        return ((self.board_size + 1) * (self.board_size + 1)) + self.total_number_of_uids
 
     # @timeit
     def current_player_get_all_valid_moves(self):

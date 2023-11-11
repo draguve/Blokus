@@ -1,6 +1,6 @@
 import random
 import numpy as np
-import blokus
+import board
 from players import Player
 
 
@@ -9,7 +9,7 @@ class AliceInWonderlandPlayer(Player):
         super().__init__(board)
         self.center = np.array((board.board_size, board.board_size)) / 2
 
-    def choose_move(self, board: blokus.BlokusBoard, board_point, uid) -> int:
+    def choose_move(self, board: board.BlokusBoard, board_point, uid) -> int:
         piece_point = board.unique_piece_id_to_join_point[uid]
         distance_start = np.linalg.norm(self.center - board_point, axis=1)
         shape_all_pieces = board.all_piece_sizes[board.unique_id_to_rotation_id[uid]]

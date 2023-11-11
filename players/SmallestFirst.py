@@ -2,12 +2,12 @@ import random
 
 import numpy as np
 
-import blokus
+import board
 from players import Player
 
 
 class SmallestFirstPlayer(Player):
-    def __init__(self, board: blokus.BlokusBoard):
+    def __init__(self, board: board.BlokusBoard):
         super().__init__(board)
         piece_sizes = np.zeros(board.all_unique_pieces.shape[0])
         for i in range(board.all_unique_pieces.shape[0]):

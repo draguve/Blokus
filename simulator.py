@@ -1,4 +1,4 @@
-from blokus import BlokusBoard
+from board import BlokusBoard
 from players.AimCenter import AimCenterPlayer
 from players.AvoidCenter import AvoidCenterPlayer
 from players.BiggestFirst import BiggestFirstPlayer

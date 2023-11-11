@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 
 from pieces import *
-import blokus
+import board
 
 colors = ["blue", "orange", "red", "green", "purple"]
 dot_colors = ["#0000b2", "#b27300", "#b20000", "#003300"]

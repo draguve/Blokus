@@ -4,7 +4,7 @@ from tinydb import TinyDB
 from pathos.multiprocessing import ProcessPool
 import util
 from glicko2.glicko2 import Glicko2
-import blokus
+import board
 from simulator import BlokusSim
 from util import get_timestamp
 from tqdm import tqdm
@@ -30,6 +30,7 @@ PLOT_GLICKO_OVER_TIME = True
 NUMBER_OF_MATCHES = 1000
 NUMBER_OF_PARALLEL_PROCESSES = 16
 BATCH_COMMIT = 1000
+PLOT_LAST_POINTS = 500
 
 
 def get_players():
@@ -51,7 +52,7 @@ def get_players():
 
 
 def play_match(player1_class: type(Player), player2_class: type(Player)):
-    board = blokus.BlokusBoard()
+    board = board.BlokusBoard()
     players = [player1_class(board), player2_class(board)]
     sim = BlokusSim(board, players)
     sim.run_steps(21 * 4)
@@ -92,7 +93,7 @@ def main():
 
     glicko = Glicko2()
 
-    temp_board = blokus.BlokusBoard()
+    temp_board = board.BlokusBoard()
     for player in players:
         player_id = player(temp_board).get_player_id()
         players_ids.append(player_id)
@@ -165,8 +166,11 @@ def main():
     for player_id in players_ids:
         print(f"{players_id_to_class[player_id].__name__} -> {player_id_to_rating[player_id].mu}")
         if PLOT_GLICKO_OVER_TIME:
-            plt.plot(list(range(len(player_id_to_history[player_id]))), player_id_to_history[player_id],
-                     label=str(players_id_to_class[player_id].__name__))
+            data_to_plot = player_id_to_history[player_id]
+            how_many_to_plot = PLOT_LAST_POINTS if len(data_to_plot) > PLOT_LAST_POINTS else len(data_to_plot)
+            data_to_plot = data_to_plot[-how_many_to_plot:]
+            plt.plot(list(range(len(data_to_plot))), data_to_plot,
+                     label=str(players_id_to_class[player_id].__name__), linewidth='0.5')
     if PLOT_GLICKO_OVER_TIME:
         plt.legend(loc='lower left', fontsize="7")
         plt.show()
