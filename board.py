@@ -16,12 +16,12 @@ MAX_BOUNDING_BOX_FOR_MASK = 7
 THREADS_PER_BLOCK = 1
 
 
-@njit
+@njit(cache=True)
 def is_point_surrounded(player_board, point):
     return np.sum(player_board[point[0] - 1:point[0] + 1, point[1] - 1:point[1] + 1]) > 1
 
 
-@njit
+@njit(cache=True)
 def get_available_uids(all_pieces):
     number_points = 0
     for i, value in np.ndenumerate(all_pieces):
@@ -35,7 +35,7 @@ def get_available_uids(all_pieces):
     return player_available_uids
 
 
-@njit
+@njit(cache=True)
 def get_open_points_from_board(player_open_positions):
     number_points = 0
     for (i, j), i_ij in np.ndenumerate(player_open_positions):
@@ -50,7 +50,7 @@ def get_open_points_from_board(player_open_positions):
     return player_open_points
 
 
-@njit  # TODO: maybe check if surrounded by the full board to cull cases where surrounded by enemy pieces
+@njit(cache=True)  # TODO: maybe check if surrounded by the full board to cull cases where surrounded by enemy pieces
 def update_open_positions(
         player_open_positions,
         new_piece_board_point,
@@ -95,7 +95,7 @@ def update_open_positions(
             player_open_positions[possible_points[i][0], possible_points[i][1]] = False
 
 
-@njit
+@njit(cache=True)
 def check_if_piece_possible(
         masking_board,
         full_board,
@@ -142,7 +142,7 @@ def check_if_piece_possible(
         is_valid_placement[pos] = output
 
 
-@jit(forceobj=True)  # maybe fix this later has an issue with the repeat and the list multiplication
+@jit(forceobj=True, cache=True)  # maybe fix this later has an issue with the repeat and the list multiplication
 def get_all_valid_moves(
         current_player,
         available_uids_per_player,

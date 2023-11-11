@@ -3,11 +3,12 @@ import pathlib
 import random
 
 import numpy as np
-
+import visualizer
 import board as blokus_board
 from muzero.games.abstract_game import AbstractGame
 import torch
 import visualizer
+from util import timeit
 
 
 class MuZeroConfig:
@@ -21,8 +22,8 @@ class MuZeroConfig:
         board = blokus_board.BlokusBoard()
 
         ### Game
-        self.observation_shape = (5, 21,
-                                  21)  # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
+        self.observation_shape = (5, 21, 21)
+        # Dimensions of the game observation, must be 3D (channel, height, width). For a 1D array, please reshape it to (1, 1, length of array)
         self.action_space = list(
             range(board.number_of_tokens()))  # Fixed list of all possible actions. You should only edit the length
         self.players = list(range(2))  # List of players. You should only edit the length
@@ -30,7 +31,7 @@ class MuZeroConfig:
 
         # Evaluate
         self.muzero_player = 0  # Turn Muzero begins to play (0: MuZero plays first, 1: MuZero plays second)
-        self.opponent = "random"  # Hard coded agent that MuZero faces to assess his progress in multiplayer games. It doesn't influence training. None, "random" or "expert" if implemented in the Game class
+        self.opponent = "self"  # Hard coded agent that MuZero faces to assess his progress in multiplayer games. It doesn't influence training. None, "random" or "expert" if implemented in the Game class
 
         ### Self-Play
         self.num_workers = 4  # Number of simultaneous threads/workers self-playing to feed the replay buffer
@@ -119,7 +120,7 @@ class MuZeroConfig:
         return 1
 
 
-class BlokusGame(AbstractGame):
+class Game(AbstractGame):
     def __init__(self, seed=None):
         self.selected_pos_action = None
         self.selected_pos = None
@@ -127,6 +128,7 @@ class BlokusGame(AbstractGame):
         self.position_selected = False
         self.no_more_moves = np.zeros(4, dtype=bool)
 
+    # @timeit
     def step(self, action):
         # return self.get_observation(), reward, done
         if not self.position_selected:
@@ -144,6 +146,8 @@ class BlokusGame(AbstractGame):
             # keep going until there are valid moves
             while self.board.current_player_get_all_valid_moves()[0] is None:
                 self.no_more_moves[self.board.player_turn()] = True
+                if self.is_finished():
+                    break
                 self.board.current_player_skip_turn()
 
             r_id = self.board.unique_id_to_rotation_id[uid]
@@ -151,23 +155,29 @@ class BlokusGame(AbstractGame):
 
             return self.get_observation(), score, self.is_finished()
 
+    # @timeit
     def legal_actions(self):
         if not self.position_selected:
             valid_options = self.board.current_player_get_all_valid_moves()
             available_positions = valid_options[0].astype(int)
             valid_position_actions = available_positions[:, 0] + available_positions[:, 1] * 21
-            return np.unique(valid_position_actions)
+            return np.unique(valid_position_actions).tolist()
         else:
             # this can be optimized
             valid_options = self.board.current_player_get_all_valid_moves()
             available_positions = valid_options[0].astype(int)
             valid_position_actions = available_positions[:, 0] + available_positions[:, 1] * 21
             valid_uid_options = valid_options[1][(valid_position_actions == self.selected_pos_action).nonzero()]
-            return 21 * 21 + valid_uid_options
+            return (21 * 21 + valid_uid_options).tolist()
 
     def reset(self):
         selection_step = 0
+        self.selected_pos_action = None
+        self.selected_pos = None
+        self.position_selected = False
+        self.no_more_moves[:] = False
         self.board.re_init()
+        return self.get_observation()
 
     def is_finished(self):
         return np.all(self.no_more_moves)
@@ -189,12 +199,15 @@ class BlokusGame(AbstractGame):
 
 
 def main():
-    bboard = BlokusGame()
-    for i in range(20):
+    bboard = Game()
+    for i in range(21 * 4 * 2):
         check = bboard.legal_actions()
         rand = random.randint(0, len(check) - 1)
         obs, reward, finished = bboard.step(check[rand])
-        print(obs.shape, reward, finished)
+        print(obs.shape, reward, finished, i)
+        # visualizer.plot_store_board(bboard.board, f"../match_replays/board_{i}")
+        if finished:
+            break
 
 
 if __name__ == '__main__':
