@@ -4,7 +4,7 @@ from tinydb import TinyDB
 from pathos.multiprocessing import ProcessPool
 import util
 from glicko2.glicko2 import Glicko2
-import board
+import board as blokusBoard
 from simulator import BlokusSim
 from util import get_timestamp
 from tqdm import tqdm
@@ -52,7 +52,7 @@ def get_players():
 
 
 def play_match(player1_class: type(Player), player2_class: type(Player)):
-    board = board.BlokusBoard()
+    board = blokusBoard.BlokusBoard()
     players = [player1_class(board), player2_class(board)]
     sim = BlokusSim(board, players)
     sim.run_steps(21 * 4)
@@ -93,7 +93,7 @@ def main():
 
     glicko = Glicko2()
 
-    temp_board = board.BlokusBoard()
+    temp_board = blokusBoard.BlokusBoard()
     for player in players:
         player_id = player(temp_board).get_player_id()
         players_ids.append(player_id)

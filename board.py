@@ -255,6 +255,7 @@ class BlokusBoard:
         self.unique_piece_id_to_join_point = self.unique_piece_id_to_join_point[:self.total_number_of_uids]
 
         self.available_uids_per_player = np.ones((4, self.total_number_of_uids), dtype=bool)
+        self.uid_to_piece_id_index = np.unique(self.unique_id_to_piece_id, return_index=True)[1]
 
         self.open_board_locations = np.zeros((4, boardSize + 1, boardSize + 1), dtype=bool)
         self.open_board_locations[0, 0, 0] = True
@@ -279,6 +280,13 @@ class BlokusBoard:
         self.open_board_locations[1, self.board_size, 0] = True
         self.open_board_locations[2, self.board_size, self.board_size] = True
         self.open_board_locations[3, 0, self.board_size] = True
+
+    def set_board_state(self, player_turn, player_board, available_uids_per_player, open_board_locations):
+        self._player_turn = player_turn
+        self.maskingBoards[:] = False
+        self.maskingBoards[:, 1:21, 1:21] = player_board.copy()
+        self.available_uids_per_player = available_uids_per_player.copy()
+        self.open_board_locations = open_board_locations.copy()
 
     # @timeit
     def check_if_move_valid(self, board_point: np.array, unique_id: 0):
