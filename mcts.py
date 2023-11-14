@@ -9,12 +9,17 @@ class Model:
     def __init__(self):
         pass
 
+    def softmax(self,x):
+        """Compute softmax values for each sets of scores in x."""
+        e_x = np.exp(x - np.max(x))
+        return e_x / e_x.sum()
+
     def infer(self, obs, o=None):
         value = np.random.rand(1)
         reward = np.random.rand(1)
         policy_logits = np.random.rand(780)
         hidden_state = np.random.rand(32)
-        return value, reward, policy_logits, hidden_state
+        return value, reward, self.softmax(policy_logits), hidden_state
 
 
 # TODO Can we cache this
@@ -53,7 +58,7 @@ def get_children_ucb(
 def get_children_value(children_node_ids, id_to_value_sum, id_to_visit_count):
     values = np.zeros(children_node_ids.shape[0])
     indexes_where_positive = (id_to_visit_count[children_node_ids] > 0).nonzero()[0]
-    if len(indexes_where_positive)>0:
+    if len(indexes_where_positive) > 0:
         ids_where_positive = children_node_ids[indexes_where_positive]
         values[indexes_where_positive] = id_to_value_sum[ids_where_positive] / id_to_visit_count[ids_where_positive]
     return values
@@ -100,19 +105,19 @@ class MCTS:
                  discount=0.997,
                  max_num_simulations=800):
         self.num_of_nodes = 1  # we will always have the root node provided by the run function
-        self.node_id_to_visit_count = np.zeros(max_number_of_nodes, dtype=int)
+        self.node_id_to_visit_count = np.zeros(max_number_of_nodes, dtype=np.uint32) #dtype should be based on the number of simulations
         self.node_id_to_player = np.full(max_number_of_nodes, -1, dtype=np.uint8)
-        self.node_id_to_value_sum = np.zeros(max_number_of_nodes, dtype=float)
-        self.node_id_to_prior = np.zeros(max_number_of_nodes, dtype=float)
+        self.node_id_to_value_sum = np.zeros(max_number_of_nodes, dtype=np.float32)
+        self.node_id_to_prior = np.zeros(max_number_of_nodes, dtype=np.float32)
         self.node_id_expanded = np.zeros(max_number_of_nodes, dtype=bool)
         self.node_id_to_children_length = np.full(max_number_of_nodes, -1, dtype=np.uint16)
         # TODO the dtype for this array is based on the max number of nodes
         self.node_id_to_parent_action = np.zeros(max_number_of_nodes, dtype=np.uint16)
-        self.node_id_to_children_node_ids = np.zeros((max_number_of_nodes, size_of_action_space), dtype=np.uint16)
+        self.node_id_to_children_node_ids = np.zeros((max_number_of_nodes, size_of_action_space), dtype=np.uint32)
         # TODO currently the hidden state is a numpy float array (what to do later)
         self.node_id_to_hidden_state = np.zeros((max_number_of_nodes, hidden_state_size), dtype=np.float32)
         self.action_space = np.arange(0, size_of_action_space, dtype=np.uint16)
-        self.node_id_to_reward = np.zeros(max_number_of_nodes, dtype=float)
+        self.node_id_to_reward = np.zeros(max_number_of_nodes, dtype=np.float32)
         self.min_value = float("inf")
         self.max_value = -float("inf")
         self.pb_c_base = pb_c_base
@@ -167,14 +172,14 @@ class MCTS:
             self.pb_c_base, self.pb_c_init, self.discount
         )
         max_ids = np.flatnonzero(ucb_values == np.max(ucb_values))
-        selected_node = np.random.choice(max_ids)
+        selected_node = children_ids[np.random.choice(max_ids)]
         return self.node_id_to_parent_action[selected_node], selected_node
 
     def back_propagate(self, search_path: np.ndarray, value):
         value = value
         for i in reversed(range(search_path.shape[0])):
             node_id = search_path[i]
-            self.node_id_to_value_sum[node_id] += value[0] # TODO Fix this later
+            self.node_id_to_value_sum[node_id] += value  # TODO Fix this later
             self.node_id_to_visit_count[node_id] += 1
             value = self.node_id_to_reward[node_id] + self.discount * get_node_value(node_id, self.node_id_to_value_sum,
                                                                                      self.node_id_to_visit_count)
@@ -192,7 +197,7 @@ class MCTS:
         search_path[0] = root_node_id
         search_path_length = 1
 
-        self.back_propagate(search_path[0:search_path_length], root_value)
+        self.back_propagate(search_path[0:search_path_length], root_value[0])
 
         for _ in range(self.max_num_simulations):
             virtual_to_play = to_play
@@ -216,18 +221,19 @@ class MCTS:
             if to_play != virtual_to_play:
                 reward *= -1
             self.expand_node(node, self.action_space, virtual_to_play, reward, policy_logits, hidden_state)
-            self.back_propagate(search_path[0:search_path_length], value)
+            self.back_propagate(search_path[0:search_path_length], value[0]) # fix this value thing here
 
 
 def main():
     model = Model()
     mcts = MCTS(
-        30000,
+        3000000,
         780,
         32,
     )
     legal_actions = np.arange(0, 780, dtype=np.uint16)
     mcts.run(model, None, legal_actions, 0)
+    print("test")
 
 
 if __name__ == '__main__':
