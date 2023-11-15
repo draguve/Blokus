@@ -1,4 +1,6 @@
+import cProfile
 import math
+import random
 
 import numpy as np
 
@@ -125,6 +127,7 @@ def expand_node_static(
     return num_of_expanded_nodes, num_of_nodes
 
 
+@njit(parallel=True)
 def select_child_static(
         node,
 
@@ -153,7 +156,8 @@ def select_child_static(
         pb_c_base, pb_c_init, discount
     )
     max_ids = np.flatnonzero(ucb_values == np.max(ucb_values))
-    selected_node = children_ids[np.random.choice(max_ids)]
+    rand_idx = random.randint(0, max_ids.shape[0] - 1)
+    selected_node = children_ids[max_ids[rand_idx]]
     return node_id_to_parent_action[selected_node], selected_node
 
 
@@ -181,10 +185,58 @@ def back_propagate_static(
         max_value = max(max_value, value)
     return min_value, max_value
 
+
 def select_leaf_node_to_expand(
+        root_node_id,
+        search_path,
+        initial_to_play,
+        initial_depth,
 
+        node_id_expanded,
+        node_id_to_expanded_id,
+        expanded_id_to_children_node_ids,
+        expanded_id_to_children_length,
+        node_id_to_visit_count,
+        node_id_to_prior,
+        node_id_to_value_sum,
+        node_id_to_reward,
+        max_value,
+        min_value,
+        pb_c_base,
+        pb_c_init,
+        discount,
+        node_id_to_parent_action
 ):
+    virtual_to_play = initial_to_play
+    node = root_node_id
+    search_path[0] = root_node_id
+    search_path_length = 1
+    action = -1
 
+    while node_id_expanded[node]:
+        action, node = select_child_static(
+            node,
+
+            node_id_expanded,
+            node_id_to_expanded_id,
+            expanded_id_to_children_node_ids,
+            expanded_id_to_children_length,
+            node_id_to_visit_count,
+            node_id_to_prior,
+            node_id_to_value_sum,
+            node_id_to_reward,
+            max_value,
+            min_value,
+            pb_c_base,
+            pb_c_init,
+            discount,
+            node_id_to_parent_action
+        )
+        search_path[search_path_length] = node
+        search_path_length += 1
+
+        virtual_to_play = depth_to_player_turn(search_path_length + initial_depth - 1)
+    return node, action, virtual_to_play
 
 
 def get_nodes_to_expand(
@@ -332,6 +384,7 @@ class MCTS:
             self.max_value
         )
 
+    # @timeit
     def run(self, model, initial_observation, legal_actions, current_depth):
         to_play = depth_to_player_turn(current_depth)
         root_node_id = 0
@@ -349,19 +402,27 @@ class MCTS:
 
         # when batching this make sure number of simulations is divided by the batch number
         for _ in range(self.max_num_simulations):
-            virtual_to_play = to_play
-            node = root_node_id
-            search_path[0] = root_node_id
-            search_path_length = 1
-            action = -1
+            node, action, virtual_to_play = select_leaf_node_to_expand(
+                root_node_id,
+                search_path,
+                to_play,
+                current_depth,
 
-            while self.node_id_expanded[node]:
-                action, node = self.select_child(node)
-                search_path[search_path_length] = node
-                search_path_length += 1
-
-                virtual_to_play = depth_to_player_turn(search_path_length + current_depth - 1)
-
+                self.node_id_expanded,
+                self.node_id_to_expanded_id,
+                self.expanded_id_to_children_node_ids,
+                self.expanded_id_to_children_length,
+                self.node_id_to_visit_count,
+                self.node_id_to_prior,
+                self.node_id_to_value_sum,
+                self.node_id_to_reward,
+                self.max_value,
+                self.min_value,
+                self.pb_c_base,
+                self.pb_c_init,
+                self.discount,
+                self.node_id_to_parent_action
+            )
             parent_id = search_path[search_path_length - 2]
             parent_expanded_id = self.node_id_to_expanded_id[parent_id]
             value, reward, policy_logits, hidden_state = model.infer(
@@ -379,19 +440,26 @@ def main():
     mcts = MCTS(
         780,
         32,
+
     )
     test = model.infer(None)
     legal_actions = np.arange(0, 780, dtype=np.uint16)
     mcts.run(model, None, legal_actions, 0)
-    tree = Tree()
-    tree.create_node(0, 0)
-    for i in tqdm(range(1, mcts.num_of_nodes)):
-        tree.create_node(i, i, mcts.node_id_to_parent_id[i])
-    tree.save2file("test2")
+    # tree = Tree()
+    # tree.create_node(0, 0)
+    # for i in tqdm(range(1, mcts.num_of_nodes)):
+    #     tree.create_node(i, i, mcts.node_id_to_parent_id[i])
+    # tree.save2file("test2")
     # tree.show()
-    # mcts.reinit()
-    # mcts.run(model, None, legal_actions, 0)
-    print("test")
+
+    pr = cProfile.Profile()
+    pr.enable()
+    for i in range(10):
+        mcts.reinit()
+        mcts.run(model, None, legal_actions, 0)
+    pr.disable()
+    pr.print_stats(sort='time')
+    # print("test")
 
 
 if __name__ == '__main__':
