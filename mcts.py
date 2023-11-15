@@ -37,28 +37,21 @@ def get_children_ucb(
 
         id_to_visit_count,
         id_to_prior,
-        id_to_value_sum,
-        id_to_reward,
+        node_id_to_un_normalized_value,
 
         max_value,
         min_value,
 
         pb_c_base,
         pb_c_init,
-        discount
 ):
     pb_c = math.log(
         (id_to_visit_count[parent_node_id] + pb_c_base + 1) / pb_c_base
     ) + pb_c_init
-
     pb_c = pb_c * np.sqrt(id_to_visit_count[parent_node_id]) / ((id_to_visit_count[children_node_ids]) + 1)
     prior_score = pb_c * id_to_prior[children_node_ids]
-
-    rewards = id_to_reward[children_node_ids]
-    children_values = get_children_value(children_node_ids, id_to_value_sum, id_to_visit_count)
-    value_score = rewards + discount * children_values  # TODO ??? what to do here - or + ???
+    value_score = node_id_to_un_normalized_value[children_node_ids]
     value_score = value_score - min_value / max_value - min_value
-
     return prior_score + value_score
 
 
@@ -137,23 +130,30 @@ def select_child_static(
         expanded_id_to_children_length,
         node_id_to_visit_count,
         node_id_to_prior,
-        node_id_to_value_sum,
-        node_id_to_reward,
         max_value,
         min_value,
         pb_c_base,
         pb_c_init,
-        discount,
-        node_id_to_parent_action
+        node_id_to_parent_action,
+        node_id_to_un_normalized_value
 ):
     assert (node_id_expanded[node])
     expanded_id = node_id_to_expanded_id[node]
     children_ids = expanded_id_to_children_node_ids[expanded_id,
                    0:expanded_id_to_children_length[expanded_id]]
     ucb_values = get_children_ucb(
-        node, children_ids, node_id_to_visit_count, node_id_to_prior,
-        node_id_to_value_sum, node_id_to_reward, max_value, min_value,
-        pb_c_base, pb_c_init, discount
+        node,
+        children_ids,
+
+        node_id_to_visit_count,
+        node_id_to_prior,
+        node_id_to_un_normalized_value,
+
+        max_value,
+        min_value,
+
+        pb_c_base,
+        pb_c_init,
     )
     max_ids = np.flatnonzero(ucb_values == np.max(ucb_values))
     rand_idx = random.randint(0, max_ids.shape[0] - 1)
@@ -171,7 +171,8 @@ def back_propagate_static(
         node_id_to_reward,
         discount,
         min_value,
-        max_value
+        max_value,
+        node_id_to_un_normalized_value,
 ):
     value = value
 
@@ -181,6 +182,7 @@ def back_propagate_static(
         node_id_to_visit_count[node_id] += 1
         value = node_id_to_reward[node_id] + discount * get_node_value(node_id, node_id_to_value_sum,
                                                                        node_id_to_visit_count)
+        node_id_to_un_normalized_value[node_id] = value
         min_value = min(min_value, value)
         max_value = max(max_value, value)
     return min_value, max_value
@@ -198,14 +200,12 @@ def select_leaf_node_to_expand(
         expanded_id_to_children_length,
         node_id_to_visit_count,
         node_id_to_prior,
-        node_id_to_value_sum,
-        node_id_to_reward,
         max_value,
         min_value,
         pb_c_base,
         pb_c_init,
-        discount,
-        node_id_to_parent_action
+        node_id_to_parent_action,
+        node_id_to_un_normalized_value
 ):
     virtual_to_play = initial_to_play
     node = root_node_id
@@ -223,14 +223,12 @@ def select_leaf_node_to_expand(
             expanded_id_to_children_length,
             node_id_to_visit_count,
             node_id_to_prior,
-            node_id_to_value_sum,
-            node_id_to_reward,
             max_value,
             min_value,
             pb_c_base,
             pb_c_init,
-            discount,
-            node_id_to_parent_action
+            node_id_to_parent_action,
+            node_id_to_un_normalized_value
         )
         search_path[search_path_length] = node
         search_path_length += 1
@@ -292,6 +290,7 @@ class MCTS:
         self.action_space = np.arange(0, size_of_action_space, dtype=np.uint16)
         self.node_id_to_reward = np.zeros(max_number_of_nodes, dtype=np.float32)
         self.node_id_to_parent_id = np.zeros(max_number_of_nodes, dtype=np.uint32)
+        self.node_id_to_un_normalized_value = np.zeros(max_number_of_nodes, dtype=np.float32)
         self.min_value = float("inf")
         self.max_value = -float("inf")
         self.pb_c_base = pb_c_base
@@ -316,6 +315,7 @@ class MCTS:
         self.expanded_id_to_children_length[:] = 0  # uint16 because action space len < 65000
         self.expanded_id_to_children_node_ids[:] = 0
         self.expanded_id_to_hidden_state[:] = 0
+        self.node_id_to_un_normalized_value[:] = 0
 
     def current_number_of_nodes(self):
         return self.num_of_nodes
@@ -362,14 +362,12 @@ class MCTS:
             self.expanded_id_to_children_length,
             self.node_id_to_visit_count,
             self.node_id_to_prior,
-            self.node_id_to_value_sum,
-            self.node_id_to_reward,
             self.max_value,
             self.min_value,
             self.pb_c_base,
             self.pb_c_init,
-            self.discount,
-            self.node_id_to_parent_action
+            self.node_id_to_parent_action,
+            self.node_id_to_un_normalized_value
         )
 
     def back_propagate(self, search_path: np.ndarray, value):
@@ -381,7 +379,8 @@ class MCTS:
             self.node_id_to_reward,
             self.discount,
             self.min_value,
-            self.max_value
+            self.max_value,
+            self.node_id_to_un_normalized_value
         )
 
     # @timeit
@@ -414,14 +413,12 @@ class MCTS:
                 self.expanded_id_to_children_length,
                 self.node_id_to_visit_count,
                 self.node_id_to_prior,
-                self.node_id_to_value_sum,
-                self.node_id_to_reward,
                 self.max_value,
                 self.min_value,
                 self.pb_c_base,
                 self.pb_c_init,
-                self.discount,
-                self.node_id_to_parent_action
+                self.node_id_to_parent_action,
+                self.node_id_to_un_normalized_value
             )
             parent_id = search_path[search_path_length - 2]
             parent_expanded_id = self.node_id_to_expanded_id[parent_id]
@@ -445,20 +442,20 @@ def main():
     test = model.infer(None)
     legal_actions = np.arange(0, 780, dtype=np.uint16)
     mcts.run(model, None, legal_actions, 0)
-    # tree = Tree()
-    # tree.create_node(0, 0)
-    # for i in tqdm(range(1, mcts.num_of_nodes)):
-    #     tree.create_node(i, i, mcts.node_id_to_parent_id[i])
-    # tree.save2file("test2")
-    # tree.show()
+    tree = Tree()
+    tree.create_node(0, 0)
+    for i in tqdm(range(1, mcts.num_of_nodes)):
+        tree.create_node(i, i, mcts.node_id_to_parent_id[i])
+    tree.save2file("test3")
+    tree.show()
 
-    pr = cProfile.Profile()
-    pr.enable()
-    for i in range(10):
-        mcts.reinit()
-        mcts.run(model, None, legal_actions, 0)
-    pr.disable()
-    pr.print_stats(sort='time')
+    # pr = cProfile.Profile()
+    # pr.enable()
+    # for i in range(10):
+    #     mcts.reinit()
+    #     mcts.run(model, None, legal_actions, 0)
+    # pr.disable()
+    # pr.print_stats(sort='time')
     # print("test")
 
 
