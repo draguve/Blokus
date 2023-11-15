@@ -29,8 +29,7 @@ class Model:
         return value, reward, self.softmax(policy_logits), hidden_state
 
 
-# TODO Can we cache this
-@njit(parallel=True)
+@njit
 def get_children_ucb(
         parent_node_id,
         children_node_ids,
@@ -51,11 +50,11 @@ def get_children_ucb(
     pb_c = pb_c * np.sqrt(id_to_visit_count[parent_node_id]) / ((id_to_visit_count[children_node_ids]) + 1)
     prior_score = pb_c * id_to_prior[children_node_ids]
     value_score = node_id_to_un_normalized_value[children_node_ids]
-    value_score = value_score - min_value / max_value - min_value
+    value_score = (value_score - min_value) / max_value - min_value
     return prior_score + value_score
 
 
-@njit(parallel=True)
+@njit
 def get_children_value(children_node_ids, id_to_value_sum, id_to_visit_count):
     values = np.zeros(children_node_ids.shape[0])
     indexes_where_positive = (id_to_visit_count[children_node_ids] > 0).nonzero()[0]
@@ -120,7 +119,7 @@ def expand_node_static(
     return num_of_expanded_nodes, num_of_nodes
 
 
-@njit(parallel=True)
+@njit
 def select_child_static(
         node,
 
@@ -176,7 +175,7 @@ def back_propagate_static(
 ):
     value = value
 
-    for i in range(search_path.shape[0], -1, -1):
+    for i in range(search_path.shape[0]-1, -1, -1):
         node_id = search_path[i]
         node_id_to_value_sum[node_id] += value
         node_id_to_visit_count[node_id] += 1
@@ -188,6 +187,7 @@ def back_propagate_static(
     return min_value, max_value
 
 
+@njit
 def select_leaf_node_to_expand(
         root_node_id,
         search_path,
@@ -268,7 +268,7 @@ class MCTS:
             pb_c_init=1.25,
             discount=0.997,
     ):
-        max_number_of_nodes = (max_num_simulations + 1) * (max_num_simulations + 1)
+        max_number_of_nodes = (size_of_action_space) * (max_num_simulations + 1)
         self.num_of_nodes = 1  # we will always have the root node provided by the run function
         self.num_of_expanded_nodes = 0
         self.node_id_to_visit_count = np.zeros(max_number_of_nodes,
@@ -437,26 +437,25 @@ def main():
     mcts = MCTS(
         780,
         32,
-
+        800
     )
     test = model.infer(None)
     legal_actions = np.arange(0, 780, dtype=np.uint16)
     mcts.run(model, None, legal_actions, 0)
-    tree = Tree()
-    tree.create_node(0, 0)
-    for i in tqdm(range(1, mcts.num_of_nodes)):
-        tree.create_node(i, i, mcts.node_id_to_parent_id[i])
-    tree.save2file("test3")
-    tree.show()
+    # tree = Tree()
+    # tree.create_node(0, 0)
+    # for i in tqdm(range(1, mcts.num_of_nodes)):
+    #     tree.create_node(i, i, mcts.node_id_to_parent_id[i])
+    # tree.save2file("test3")
+    # tree.show()
 
-    # pr = cProfile.Profile()
-    # pr.enable()
-    # for i in range(10):
-    #     mcts.reinit()
-    #     mcts.run(model, None, legal_actions, 0)
-    # pr.disable()
-    # pr.print_stats(sort='time')
-    # print("test")
+    pr = cProfile.Profile()
+    pr.enable()
+    for i in range(10):
+        mcts.reinit()
+        mcts.run(model, None, legal_actions, 0)
+    pr.disable()
+    pr.print_stats(sort='time')
 
 
 if __name__ == '__main__':
