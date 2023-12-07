@@ -17,11 +17,19 @@ class Game:
         self.board = blokus_board.BlokusBoard(20)
         self.position_selected = False
         self.no_more_moves = np.zeros(4, dtype=bool)
+        self.final_token = self.board.number_of_tokens()
+        self.no_more_moves_token = np.array([self.final_token], dtype=int)
 
     # @timeit
     def step(self, action):
         # return self.get_observation(), reward, done
         if not self.position_selected:
+            if action == self.final_token:
+                self.position_selected = True
+                self.selected_pos_action = self.final_token
+                self.selected_pos = np.array([-1, -1])
+                self.no_more_moves[self.board.player_turn()] = True
+                return self.get_observation(), 0, self.is_finished()
             x = action % 21
             y = action // 21
             self.position_selected = True
@@ -30,15 +38,19 @@ class Game:
             return self.get_observation(), 0, False
         else:
             self.position_selected = False
+            if action == self.final_token:
+                self.no_more_moves[self.board.player_turn()] = True
+                self.board.current_player_skip_turn()
+                return self.get_observation(), 0, self.is_finished()
             uid = action - (21 * 21)
             self.board.current_player_submit_move(self.selected_pos, uid)
-
+            # TODO: remove this instead the model should output a token that says it can't make a move
             # keep going until there are valid moves
-            while self.board.current_player_get_all_valid_moves()[0] is None:
-                self.no_more_moves[self.board.player_turn()] = True
-                if self.is_finished():
-                    break
-                self.board.current_player_skip_turn()
+            # while self.board.current_player_get_all_valid_moves()[0] is None:
+            #     self.no_more_moves[self.board.player_turn()] = True
+            #     if self.is_finished():
+            #         break
+            #     self.board.current_player_skip_turn()
 
             r_id = self.board.unique_id_to_rotation_id[uid]
             score = np.sum(self.board.all_unique_pieces[r_id])
@@ -47,18 +59,25 @@ class Game:
 
     # @timeit
     def legal_actions(self):
+        # TODO: check if we have no more positions we need to say that the only token that we can play is the empty token
+        if self.no_more_moves[self.board.player_turn()]:
+            return self.no_more_moves_token
+        current_player_valid_moves = self.board.current_player_get_all_valid_moves()
+        if current_player_valid_moves[0] is None:
+            self.no_more_moves[self.board.player_turn()] = True
+            return self.no_more_moves_token
         if not self.position_selected:
-            valid_options = self.board.current_player_get_all_valid_moves()
+            valid_options = current_player_valid_moves
             available_positions = valid_options[0].astype(int)
             valid_position_actions = available_positions[:, 0] + available_positions[:, 1] * 21
-            return np.unique(valid_position_actions).tolist()
+            return np.unique(valid_position_actions)
         else:
             # this can be optimized
-            valid_options = self.board.current_player_get_all_valid_moves()
+            valid_options = current_player_valid_moves
             available_positions = valid_options[0].astype(int)
             valid_position_actions = available_positions[:, 0] + available_positions[:, 1] * 21
             valid_uid_options = valid_options[1][(valid_position_actions == self.selected_pos_action).nonzero()]
-            return (21 * 21 + valid_uid_options).tolist()
+            return 21 * 21 + valid_uid_options
 
     def reset(self):
         selection_step = 0
@@ -97,12 +116,17 @@ class Game:
 
 
 def main():
+    prev = None
     bboard = Game()
     for i in range(21 * 4 * 2):
+        check2 = bboard.board.current_player_get_all_valid_moves()
         check = bboard.legal_actions()
         rand = random.randint(0, len(check) - 1)
         obs, reward, finished = bboard.step(check[rand])
+        # print(check[rand])
         print(obs.shape, reward, finished, i)
+        print(bboard.board.player_turn())
+        prev = check
         # visualizer.plot_store_board(bboard.board, f"../match_replays/board_{i}")
         if finished:
             break

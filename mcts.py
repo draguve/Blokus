@@ -111,7 +111,7 @@ def expand_node_static(
     expanded_id = num_of_expanded_nodes
     node_id_to_expanded_id[node_id] = num_of_expanded_nodes
     num_of_expanded_nodes += 1
-    node_id_to_player[node_id] = to_play
+    node_id_to_player[expanded_id] = to_play
 
     num_new_nodes = valid_actions.shape[0]
     new_node_ids = np.arange(0, num_new_nodes, 1, np.uint32) + num_of_nodes
@@ -387,7 +387,7 @@ class MCTS:
         self.num_of_expanded_nodes = 0
         self.node_id_to_visit_count = np.zeros(max_number_of_nodes,
                                                dtype=np.uint32)  # dtype should be based on the number of simulations
-        self.node_id_to_player = np.full(max_number_of_nodes, -1, dtype=np.uint8)
+        self.node_id_to_player = np.full(max_num_simulations + 1, -1, dtype=np.uint8)
         self.node_id_to_value_sum = np.zeros(max_number_of_nodes, dtype=np.float32)
         self.node_id_to_prior = np.zeros(max_number_of_nodes, dtype=np.float32)
         self.node_id_expanded = np.zeros(max_number_of_nodes, dtype=bool)
