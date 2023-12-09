@@ -20,6 +20,10 @@ class Game:
         self.final_token = self.board.number_of_tokens()
         self.no_more_moves_token = np.array([self.final_token], dtype=int)
 
+    # One extra for noop token
+    def total_number_of_possible_tokens(self):
+        return self.board.number_of_tokens()+1
+
     # @timeit
     def step(self, action):
         # return self.get_observation(), reward, done
@@ -127,7 +131,7 @@ def main():
         print(obs.shape, reward, finished, i)
         print(bboard.board.player_turn())
         prev = check
-        # visualizer.plot_store_board(bboard.board, f"../match_replays/board_{i}")
+        visualizer.plot_store_board(bboard.board, f"../match_replays/board_{i}")
         if finished:
             break
 

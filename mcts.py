@@ -15,8 +15,9 @@ FLOAT_MIN = np.finfo(np.float32).min
 
 
 class Model:
-    def __init__(self):
-        pass
+    def __init__(self, policy_logits=780, hidden_state_size=32):
+        self.policy_logits = policy_logits
+        self.hidden_state_size = hidden_state_size
 
     def softmax(self, x):
         """Compute softmax values for each sets of scores in x."""
@@ -29,13 +30,13 @@ class Model:
                 batch = obs.shape[0]
                 value = np.random.rand(batch)
                 reward = np.random.rand(batch)
-                policy_logits = np.random.rand(batch, 780)
-                hidden_state = np.random.rand(batch, 32)
+                policy_logits = np.random.rand(batch, self.policy_logits)
+                hidden_state = np.random.rand(batch, self.hidden_state_size)
                 return value, reward, self.softmax(policy_logits), hidden_state
         value = np.random.rand(1)
         reward = np.random.rand(1)
-        policy_logits = np.random.rand(780)
-        hidden_state = np.random.rand(32)
+        policy_logits = np.random.rand(self.policy_logits)
+        hidden_state = np.random.rand(self.hidden_state_size)
         return value, reward, self.softmax(policy_logits), hidden_state
 
 
@@ -82,8 +83,13 @@ def get_node_value(node_id, id_to_value_sum, id_to_visit_count):
 
 
 @njit
-def depth_to_player_turn(depth):
-    return (depth // 2) % 2
+def depth_to_player_turn(depth, invert=False):
+    raw_value = (depth // 2) % 2
+    if invert:
+        if raw_value == 1:
+            return 0
+        return 1
+    return raw_value
 
 
 @njit
@@ -116,7 +122,7 @@ def expand_node_static(
     num_new_nodes = valid_actions.shape[0]
     new_node_ids = np.arange(0, num_new_nodes, 1, np.uint32) + num_of_nodes
 
-    node_id_to_reward[node_id] = reward
+    node_id_to_reward[node_id] = reward if to_play == 0 else -reward
     expanded_id_to_hidden_state[expanded_id] = hidden_state
     expanded_id_to_children_length[expanded_id] = num_new_nodes
     expanded_id_to_children_node_ids[expanded_id, 0:num_new_nodes] = new_node_ids
@@ -220,7 +226,8 @@ def select_leaf_node_to_expand(
         pb_c_init,
         node_id_to_parent_action,
         node_id_to_un_normalized_value,
-        nodes_to_ignore
+        nodes_to_ignore,
+        invert
 ):
     virtual_to_play = initial_to_play
     node = root_node_id
@@ -249,7 +256,7 @@ def select_leaf_node_to_expand(
         search_path[search_path_length] = node
         search_path_length += 1
 
-        virtual_to_play = depth_to_player_turn(search_path_length + initial_depth - 1)
+        virtual_to_play = depth_to_player_turn(search_path_length + initial_depth - 1, invert)
     return node, action, virtual_to_play, search_path_length
 
 
@@ -273,10 +280,11 @@ def select_leaf_nodes_to_expand(
         node_id_to_un_normalized_value,
         nodes_to_ignore,
         batch_size,
+        invert
 ):
     node_ids = np.full(batch_size, root_node_id)
     action = np.full(batch_size, -1, np.uint16)
-    virtual_to_play = np.full(batch_size, depth_to_player_turn(current_depth))
+    virtual_to_play = np.full(batch_size, depth_to_player_turn(current_depth, invert))
     search_length = np.ones(batch_size, np.uint32)
     search_paths[0] = root_node_id
     for i in range(batch_size):
@@ -298,13 +306,14 @@ def select_leaf_nodes_to_expand(
             pb_c_init,
             node_id_to_parent_action,
             node_id_to_un_normalized_value,
-            nodes_to_ignore
+            nodes_to_ignore,
+            invert
         )
         nodes_to_ignore[node_ids[i]] = True
     nodes_to_ignore[node_ids] = False
     return node_ids, action, virtual_to_play, search_length
 
-
+@njit
 def batched_expand_and_propagate(
         nodes: np.ndarray,
         to_plays: np.ndarray,
@@ -499,8 +508,8 @@ class MCTS:
         )
 
     @timeit
-    def run(self, model, initial_observation, legal_actions, current_depth):
-        to_play = depth_to_player_turn(current_depth)
+    def run(self, model, initial_observation, legal_actions, current_depth, invert=False):
+        to_play = depth_to_player_turn(current_depth, invert)
         root_node_id = 0
         root_value, reward, policy_logits, hidden_state = model.infer(initial_observation)
         self.expand_node(root_node_id, legal_actions, to_play, reward[0], policy_logits,
@@ -531,7 +540,8 @@ class MCTS:
                 self.pb_c_init,
                 self.node_id_to_parent_action,
                 self.node_id_to_un_normalized_value,
-                self.nodes_to_ignore
+                self.nodes_to_ignore,
+                invert
             )
             parent_id = search_path[search_path_length - 2]
             parent_expanded_id = self.node_id_to_expanded_id[parent_id]
@@ -545,8 +555,8 @@ class MCTS:
             self.back_propagate(search_path[0:search_path_length], value[0])  # fix this value thing here
 
     @timeit
-    def run_batched(self, model, initial_observation, legal_actions, current_depth, batches):
-        to_play = depth_to_player_turn(current_depth)
+    def run_batched(self, model, initial_observation, legal_actions, current_depth, batches, invert=False):
+        to_play = depth_to_player_turn(current_depth, invert)
         root_node_id = 0
         root_value, reward, policy_logits, hidden_state = model.infer(initial_observation)
         self.expand_node(root_node_id, legal_actions, to_play, reward[0], policy_logits,
@@ -580,6 +590,7 @@ class MCTS:
                 self.node_id_to_un_normalized_value,
                 self.nodes_to_ignore,
                 batches,
+                invert
             )
             parent_ids = self.node_id_to_parent_id[nodes]
             parent_expanded_ids = self.node_id_to_expanded_id[parent_ids]
@@ -630,16 +641,17 @@ def main():
         800
     )
     # test = model.infer(None)
-    legal_actions = np.arange(0, 780, dtype=np.uint16)
-    mcts.run_batched(model, None, legal_actions, 0, 16)
-    mcts.reinit()
-    mcts.run(model, None, legal_actions, 1)
-    mcts.reinit()
-
-    mcts.run_batched(model, None, legal_actions, 0, 16)
-    mcts.reinit()
-    mcts.run(model, None, legal_actions, 1)
-    mcts.reinit()
+    for i in range(10):
+        legal_actions = np.arange(0, 780, dtype=np.uint16)
+        # mcts.run_batched(model, None, legal_actions, 1, 16)
+        # mcts.reinit()
+        mcts.run(model, None, legal_actions, 1)
+        mcts.reinit()
+    #
+    # mcts.run_batched(model, None, legal_actions, 0, 16)
+    # mcts.reinit()
+    # mcts.run(model, None, legal_actions, 1)
+    # mcts.reinit()
     # tree = Tree()
     # tree.create_node(0, 0)
     # for i in tqdm(range(1, mcts.num_of_nodes)):
