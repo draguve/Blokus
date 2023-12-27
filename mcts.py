@@ -24,6 +24,13 @@ class Model:
         e_x = np.exp(x - np.max(x))
         return e_x / e_x.sum()
 
+    def init_infer(self,obs):
+        value = np.random.rand(1)
+        reward = np.random.rand(1)
+        policy_logits = np.random.rand(self.policy_logits)
+        hidden_state = np.random.rand(self.hidden_state_size)
+        return value, reward, self.softmax(policy_logits), hidden_state
+
     def infer(self, obs, o=None):
         if obs is not None:
             if len(obs.shape) > 1:
@@ -554,11 +561,11 @@ class MCTS:
             self.expand_node(node, self.action_space, virtual_to_play, reward[0], policy_logits, hidden_state)
             self.back_propagate(search_path[0:search_path_length], value[0])  # fix this value thing here
 
-    @timeit
+    # @timeit
     def run_batched(self, model, initial_observation, legal_actions, current_depth, batches, invert=False):
         to_play = depth_to_player_turn(current_depth, invert)
         root_node_id = 0
-        root_value, reward, policy_logits, hidden_state = model.infer(initial_observation)
+        root_value, reward, policy_logits, hidden_state = model.init_infer(initial_observation)
         self.expand_node(root_node_id, legal_actions, to_play, reward[0], policy_logits,
                          hidden_state)  # TODO Fix this(reward[0]) later on
         self.add_noise_to_node(root_node_id)
@@ -632,6 +639,22 @@ class MCTS:
                 self.action_space
             )
 
+    def select_root_action(self, temperature_thresh):
+        root_node_id = 0
+        expanded_id = self.node_id_to_expanded_id[root_node_id]
+        num_children = self.expanded_id_to_children_length[expanded_id]
+        children = self.expanded_id_to_children_node_ids[expanded_id][:num_children]
+        actions = self.node_id_to_parent_action[children]
+        visit_counts = self.node_id_to_visit_count[children]
+        if temperature_thresh == 0:
+            return actions[np.argmax(visit_counts)]
+        elif temperature_thresh == float("inf"):
+            return np.random.choice(actions)
+            # See paper appendix Data Generation
+        visit_count_distribution = visit_counts ** (1 / temperature_thresh)
+        visit_count_distribution = visit_count_distribution / np.sum(visit_count_distribution)
+        return np.random.choice(actions, p=visit_count_distribution)
+
 
 def main():
     model = Model()
@@ -641,15 +664,17 @@ def main():
         800
     )
     # test = model.infer(None)
-    for i in range(10):
-        legal_actions = np.arange(0, 780, dtype=np.uint16)
-        # mcts.run_batched(model, None, legal_actions, 1, 16)
-        # mcts.reinit()
-        mcts.run(model, None, legal_actions, 1)
-        mcts.reinit()
-    #
-    # mcts.run_batched(model, None, legal_actions, 0, 16)
-    # mcts.reinit()
+    mcts.reinit()
+    legal_actions = np.arange(0, 312, dtype=np.uint16)
+    # for i in range(10):
+    #     # mcts.run_batched(model, None, legal_actions, 1, 16)
+    #     # mcts.reinit()
+    #     mcts.run(model, None, legal_actions, 1)
+    #     mcts.reinit()
+    # #
+    mcts.reinit()
+    mcts.run_batched(model, None, legal_actions, 0, 16)
+    print(mcts.select_root_action(0.0))
     # mcts.run(model, None, legal_actions, 1)
     # mcts.reinit()
     # tree = Tree()
