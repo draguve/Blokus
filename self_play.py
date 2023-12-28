@@ -24,6 +24,7 @@ class SelfPlay:
             to_invert = self.game.to_play() == 1
             self.mcts.run_batched(self.model, self.game.get_observation(), self.game.legal_actions(), i,
                                   self.mcts_batch_size, to_invert)
+            # TODO No need to check to find the action if there is only one legal action
             action = self.mcts.select_root_action(temp_thresh)
             obs, reward, finished = self.game.step(action)
             visualizer.plot_store_board(self.game.board, f"match_replays/board_{i}")
