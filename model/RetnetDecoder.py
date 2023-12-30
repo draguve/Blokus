@@ -204,7 +204,7 @@ class RetNetDecoder(nn.Module):
     ) -> Tuple[Tensor, Tensor, Tensor]:
         if len(x.shape) != 2:
             raise ValueError(
-                f"Unexpected shape of input, expected [batches,seq_len,emb_dim]"
+                f"Unexpected shape of input, expected [batches,emb_dim]"
             )
         if torch.is_tensor(seq_idx):
             seq_idx = rearrange(seq_idx, "b -> b () ()")
@@ -227,7 +227,7 @@ class RetNetDecoder(nn.Module):
                 raise ValueError(
                     f"Cross state and state do not have the same number of batches"
                 )
-            batches = batch_state
+            assert batches == batch_state
 
         states = torch.zeros([self.num_layers, batches, self.num_heads, self.head_dim, self.head_dim],
                              dtype=self.dtype, device=self.device)
@@ -270,7 +270,7 @@ class RetNetDecoder(nn.Module):
                 raise ValueError(
                     f"Cross state and state do not have the same number of batches"
                 )
-            batches = batch_state
+            assert batches == batch_state
 
         states = torch.zeros([self.num_layers, batches, self.num_heads, self.head_dim, self.head_dim],
                              dtype=self.dtype, device=self.device)
