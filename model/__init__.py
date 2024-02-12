@@ -10,7 +10,7 @@ from games.blokus import Game
 
 class ReinforcementNet(nn.Module):
     def __init__(self, input_shape, embedding_size=64, policy_size=400, n_heads=4, dropout=0.1, dim_ff=512,
-                 num_layers=3, device="cpu", dtype=torch.float32, *args, **kwargs):
+                 num_layers=3, support_scalar_size=10, device="cpu", dtype=torch.float32, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if embedding_size % n_heads != 0:
             raise ValueError(
@@ -23,7 +23,9 @@ class ReinforcementNet(nn.Module):
                 f"head_dim (embed_dim / num_heads = {head_dim}) must be divisible by 8"
             )
 
+        self.support_scalar_size = support_scalar_size
         total_input_size = np.prod(input_shape)
+        
         represent_net = nn.Sequential(
             nn.Linear(total_input_size, embedding_size, device=device, dtype=dtype),
             nn.Dropout(dropout),
@@ -44,7 +46,12 @@ class ReinforcementNet(nn.Module):
         self.policy_emb = nn.Embedding(policy_size, embedding_size)
         # self.softmax = nn.Softmax()
 
-    def init_infer(self, obs, prev_action, seq_idx, prev_encoder_state, prev_policy_state, prev_cross_policy_state):
+    def init_infer(
+            self, obs, prev_action, seq_idx, prev_encoder_state,
+            prev_policy_state, prev_cross_policy_state,
+            prev_reward_state, prev_cross_reward_state,
+            prev_value_state,prev_cross_value_state,
+    ):
         representation = self.represent(torch.atleast_2d(obs))
         prev_emb_policy = torch.atleast_2d(self.policy_emb(prev_action))
         mem, next_encoder_states = self.encoder.forward_recurrent(representation, seq_idx, prev_encoder_state)
@@ -53,6 +60,7 @@ class ReinforcementNet(nn.Module):
                                                                                                     seq_idx,
                                                                                                     prev_policy_state,
                                                                                                     prev_cross_policy_state)
+
         policy_logits = self.policy_ff(emb_policy)
         return policy_logits
         # return value, reward, self.softmax(policy_logits), representation
