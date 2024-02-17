@@ -24,7 +24,7 @@ class Model:
         e_x = np.exp(x - np.max(x))
         return e_x / e_x.sum()
 
-    def init_infer(self,obs):
+    def init_infer(self, obs):
         value = np.random.rand(1)
         reward = np.random.rand(1)
         policy_logits = np.random.rand(self.policy_logits)
@@ -163,8 +163,7 @@ def select_child_static(
 ):
     assert (node_id_expanded[node])
     expanded_id = node_id_to_expanded_id[node]
-    children_ids = expanded_id_to_children_node_ids[expanded_id,
-                   0:expanded_id_to_children_length[expanded_id]]
+    children_ids = expanded_id_to_children_node_ids[expanded_id, 0:expanded_id_to_children_length[expanded_id]]
     nodes_to_ignore = nodes_to_ignore[children_ids]
     ucb_values = get_children_ucb(
         node,
@@ -319,6 +318,7 @@ def select_leaf_nodes_to_expand(
         nodes_to_ignore[node_ids[i]] = True
     nodes_to_ignore[node_ids] = False
     return node_ids, action, virtual_to_play, search_length
+
 
 @njit
 def batched_expand_and_propagate(

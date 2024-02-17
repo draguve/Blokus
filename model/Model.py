@@ -12,7 +12,7 @@ class Model:
         e_x = np.exp(x - np.max(x))
         return e_x / e_x.sum()
 
-    def init_infer(self,obs):
+    def init_infer(self, obs):
         value = np.random.rand(1)
         reward = np.random.rand(1)
         policy_logits = np.random.rand(self.policy_logits)
